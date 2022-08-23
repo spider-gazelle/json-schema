@@ -31,3 +31,6 @@ end
 
 class TestGenericInheritance < Hash(String, Int32)
 end
+
+class SuperArray < Array(Int32)
+end

@@ -61,17 +61,13 @@ module JSON
 
         {% if klass <= Array || klass <= Set %}
           {% if klass.type_vars.size == 1 %}
-            has_items = ::JSON::Schema.introspect {{klass.type_vars[0]}}
+            %has_items = ::JSON::Schema.introspect({{klass.type_vars[0]}})
+            {type: "array", items: %has_items}
           {% else %}
             # handle inheritance (no access to type_var / unknown value)
-            has_items = NamedTuple.new
-          {% end %}
-          if has_items.empty?
-            %klass = {{klass}}
+            %klass = {{klass.ancestors[0]}}
             %klass.responds_to?(:json_schema) ? %klass.json_schema : {type: "array"}
-          else
-            {type: "array", items: has_items}
-          end
+          {% end %}
         {% elsif klass.union? %}
           { anyOf: [
             {% for type in klass.union_types %}
@@ -79,32 +75,36 @@ module JSON
             {% end %}
           ]}
         {% elsif klass_name.starts_with? "Tuple(" %}
-          has_items = [
+          %has_items = [
             {% for generic in klass.type_vars %}
               ::JSON::Schema.introspect({{generic}}),
             {% end %}
           ]
-          {type: "array", items: has_items}
+          {type: "array", items: %has_items}
         {% elsif klass_name.starts_with? "NamedTuple(" %}
-          {type: "object",  properties: {
-            {% for key in klass.keys %}
-              {{key.id}}: ::JSON::Schema.introspect({{klass[key].resolve.name}}),
-            {% end %}
-          },
-            {% required = [] of String %}
-            {% for key in klass.keys %}
-              {% if !klass[key].resolve.nilable? %}
-                {% required << key.id.stringify %}
+          {% if klass.keys.empty? %}
+            {type: "object",  properties: {} of Symbol => Nil}
+          {% else %}
+            {type: "object",  properties: {
+              {% for key in klass.keys %}
+                {{key.id}}: ::JSON::Schema.introspect({{klass[key].resolve.name}}),
               {% end %}
-            {% end %}
-            {% if !required.empty? %}
-              required: [
-              {% for key in required %}
-                {{key}},
+            },
+              {% required = [] of String %}
+              {% for key in klass.keys %}
+                {% if !klass[key].resolve.nilable? %}
+                  {% required << key.id.stringify %}
+                {% end %}
               {% end %}
-              ]
-            {% end %}
-          }
+              {% if !required.empty? %}
+                required: [
+                {% for key in required %}
+                  {{key}},
+                {% end %}
+                ]
+              {% end %}
+            }
+          {% end %}
         {% elsif klass < Enum %}
           {type: "string",  enum: {{klass.constants.map(&.stringify.underscore)}} }
         {% elsif klass <= String || klass <= Symbol %}
@@ -133,7 +133,7 @@ module JSON
             %klass.json_schema
           else
             # anything will validate (JSON::Any)
-            NamedTuple.new
+            { type: "object" }
           end
         {% end %}
       {% end %}

@@ -13,6 +13,12 @@ describe JSON::Schema do
 
     TestGenericInheritance.json_schema.should eq({type: "object", additionalProperties: {type: "integer"}})
 
+    Array(Int32).json_schema.should eq({type: "array", items: {type: "integer"}})
+    SuperArray.json_schema.should eq({type: "array", items: {type: "integer"}})
+
+    # empty named tuple
+    NamedTuple.new.class.json_schema.should eq({type: "object", properties: {} of Symbol => Nil})
+
     Array(String | Int32).json_schema.should eq({
       type:  "array",
       items: {
