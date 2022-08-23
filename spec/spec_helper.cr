@@ -1,5 +1,5 @@
 require "spec"
-require "../src/json/schema"
+require "../src/json-schema"
 
 enum TestEnum
   Option1

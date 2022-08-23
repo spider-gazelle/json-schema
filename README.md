@@ -16,7 +16,7 @@ basic type support
 
 ```crystal
 
-require "json/schema"
+require "json-schema"
 
 String.json_schema #=> {type: "string"}
 
@@ -40,7 +40,7 @@ json serialisable support is included too, with deeply nested objects etc.
 
 ```crystal
 
-require "json/schema"
+require "json-schema"
 
 class MyType
   include JSON::Serializable
