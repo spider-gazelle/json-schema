@@ -20,11 +20,11 @@ require "json-schema"
 
 String.json_schema #=> {type: "string"}
 
-Int32.json_schema #=> {type: "integer"}
+Int32.json_schema #=> {type: "integer", format: "Int32"}
 
-Float32.json_schema #=> {type: "number"}
+Float32.json_schema #=> {type: "number", format: "Float32"}
 
-Array(String | Int32).json_schema #=> { type: "array", items: { anyOf: [{type: "integer"}, {type: "string"}] } }
+Array(String | Int32).json_schema #=> { type: "array", items: { anyOf: [{type: "integer", format: "Int32"}, {type: "string"}] } }
 
 # Works with enums
 enum TestEnum
@@ -47,6 +47,7 @@ class MyType
 
   getter string : String
   getter symbol : Symbol?
+  getter time : Time
   getter integer : Int32
   getter union_type : String | Int64 | Bool
 end
@@ -58,12 +59,13 @@ MyType.json_schema
 {
   type: "object",
   properties: {
-    string: {type: "string"},
-    symbol: {type: "string"},
-    integer: {type: "integer"},
-    union_type: {anyOf: [{type: "boolean"}, {type: "integer"}, {type: "string"}]}
+    string:     {type: "string"},
+    symbol:     {type: "string"},
+    time:       {type: "string", format: "date-time"},
+    integer:    {type: "integer", format: "Int32"},
+    union_type: {anyOf: [{type: "boolean"}, {type: "integer", format: "Int64"}, {type: "string"}]}
   },
-  required: ["string", "integer", "union_type"]
+  required: ["string", "time", "integer", "union_type"]
 }
 
 ```
