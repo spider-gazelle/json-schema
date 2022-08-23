@@ -15,6 +15,7 @@ class Example1
   getter symbol : Symbol
   @[JSON::Field(converter: Time::EpochConverter, type: "integer", format: "Int64")]
   getter time : Time
+  @[JSON::Field(minimum: 0, maximum: 100)]
   getter integer : Int32
   getter bool : Bool
   getter null : Nil

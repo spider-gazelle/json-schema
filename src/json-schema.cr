@@ -9,7 +9,7 @@ module JSON
         {% for ivar in @type.instance_vars %}
           {% ann = ivar.annotation(::JSON::Field) %}
           {% unless ann && (ann[:ignore] || ann[:ignore_deserialize]) %}
-            {% properties[((ann && ann[:key]) || ivar).id] = {ivar.type.resolve, (ann && ann[:converter]), (ann && ann[:format]), (ann && ann[:type])} %}
+            {% properties[((ann && ann[:key]) || ivar).id] = {ivar.type.resolve, (ann && ann[:converter]), (ann && ann.named_args)} %}
           {% end %}
         {% end %}
 
@@ -20,8 +20,7 @@ module JSON
             {% for key, details in properties %}
               {% ivar = details[0] %}
               {% converter = details[1] %}
-              {% format_hint = details[2] %}
-              {% type_override = details[3] %}
+              {% args = details[2] %}
               {% if ivar < Enum && converter %}
                 # we don't specify the type of the enum as we don't know what will be output
                 # all we know is that it can be parsed as JSON
@@ -31,7 +30,7 @@ module JSON
                   {% end %}
                 ]},
               {% else %}
-                {{key}}: ::JSON::Schema.introspect({{ivar.name}}, {{format_hint}}, {{type_override}}),
+                {{key}}: ::JSON::Schema.introspect({{ivar.name}}, {{args}}),
               {% end %}
             {% end %}
           },
@@ -54,7 +53,11 @@ module JSON
       {% end %}
     end
 
-    macro introspect(klass, format_hint = nil, type_override = nil)
+    macro introspect(klass, args = nil)
+      {% format_hint = (args && args[:format]) %}
+      {% type_override = (args && args[:type]) %}
+      {% pattern = (args && args[:pattern]) %}
+
       {% arg_name = klass.stringify %}
       {% if !arg_name.starts_with?("Union") && arg_name.includes?("|") %}
         ::JSON::Schema.introspect(Union({{klass}}))
@@ -111,19 +114,28 @@ module JSON
         {% elsif klass < Enum %}
           {type: "string",  enum: {{klass.constants.map(&.stringify.underscore)}} }
         {% elsif klass <= String || klass <= Symbol %}
-          { type: {{type_override || "string"}}{% if format_hint %}, format: {{format_hint}}{% end %} }
+          {% min_length = (args && args[:min_length]) %}
+          {% max_length = (args && args[:max_length]) %}
+          { type: {{type_override || "string"}}{% if format_hint %}, format: {{format_hint}}{% end %}{% if pattern %}, pattern: {{pattern}}{% end %}{% if min_length %}, minLength: {{min_length}}{% end %}{% if max_length %}, maxLength: {{max_length}}{% end %} }
         {% elsif klass <= Bool %}
           { type: {{type_override || "boolean"}}{% if format_hint %}, format: {{format_hint}}{% end %} }
-        {% elsif klass <= Int %}
-          { type: {{type_override || "integer"}}, format: {{format_hint || klass.stringify}} }
-        {% elsif klass <= Float %}
-          { type: {{type_override || "number"}}, format: {{format_hint || klass.stringify}} }
+        {% elsif klass <= Int || klass <= Float %}
+          {% multiple_of = (args && args[:multiple_of]) %}
+          {% minimum = (args && args[:minimum]) %}
+          {% exclusive_minimum = (args && args[:exclusive_minimum]) %}
+          {% maximum = (args && args[:maximum]) %}
+          {% exclusive_maximum = (args && args[:exclusive_maximum]) %}
+          {% if klass <= Int %}
+            { type: {{type_override || "integer"}}, format: {{format_hint || klass.stringify}}{% if multiple_of %}, multipleOf: {{multiple_of}}{% end %}{% if minimum %}, minimum: {{minimum}}{% end %}{% if exclusive_minimum %}, exclusiveMinimum: {{exclusive_minimum}}{% end %}{% if maximum %}, maximum: {{maximum}}{% end %}{% if exclusive_maximum %}, exclusiveMaximum: {{exclusive_maximum}}{% end %} }
+          {% elsif klass <= Float %}
+            { type: {{type_override || "number"}}, format: {{format_hint || klass.stringify}}{% if multiple_of %}, multipleOf: {{multiple_of}}{% end %}{% if minimum %}, minimum: {{minimum}}{% end %}{% if exclusive_minimum %}, exclusiveMinimum: {{exclusive_minimum}}{% end %}{% if maximum %}, maximum: {{maximum}}{% end %}{% if exclusive_maximum %}, exclusiveMaximum: {{exclusive_maximum}}{% end %} }
+          {% end %}
         {% elsif klass <= Nil %}
           { type: {{type_override || "null"}}{% if format_hint %}, format: {{format_hint}}{% end %} }
         {% elsif klass <= Time %}
-          { type: {{type_override || "string"}}, format: {{format_hint || "date-time"}} }
+          { type: {{type_override || "string"}}, format: {{format_hint || "date-time"}}{% if pattern %}, pattern: {{pattern}}{% end %} }
         {% elsif klass <= UUID %}
-          { type: {{type_override || "string"}}, format: {{format_hint || "uuid"}} }
+          { type: {{type_override || "string"}}, format: {{format_hint || "uuid"}}{% if pattern %}, pattern: {{pattern}}{% end %} }
         {% elsif klass <= Hash %}
           {% if klass.type_vars.size == 2 %}
             { type: "object", additionalProperties: ::JSON::Schema.introspect({{klass.type_vars[1]}}) }
