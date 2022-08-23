@@ -1,0 +1,44 @@
+name: CI
+on:
+  push:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+jobs:
+  crystal-style:
+    name: Crystal Style
+    uses: PlaceOS/.github/.github/workflows/crystal-style.yml@main
+
+  test:
+    name: "${{ !matrix.stable && '🚧 ' || '' }}crystal: ${{ matrix.crystal }}, MT: ${{ matrix.MT && '☑' || '☐' }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        MT: [true, false]
+        stable: [true]
+        crystal:
+          - latest
+        include:
+          - crystal: nightly
+            MT: true
+            stable: false
+          - crystal: nightly
+            MT: false
+            stable: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install crystal
+        uses: crystal-lang/install-crystal@v1.5.3
+        with:
+          crystal: ${{ matrix.crystal }}
+
+      - name: Install dependencies
+        run: shards install --ignore-crystal-version
+      - name: Test ${{ matrix.MT && 'Multithreaded' || '' }}
+        run: |
+          crystal spec \
+          --error-trace \
+          ${{ matrix.MT && '-Dpreview_mt' || '' }} \
+          --order random \
+          --verbose
