@@ -3,18 +3,21 @@ require "./spec_helper"
 describe JSON::Schema do
   it "generates JSON schema for basic types" do
     String.json_schema.should eq({type: "string"})
-    Int32.json_schema.should eq({type: "integer"})
+    Int32.json_schema.should eq({type: "integer", format: "Int32"})
     Symbol.json_schema.should eq({type: "string"})
     Nil.json_schema.should eq({type: "null"})
-    Float32.json_schema.should eq({type: "number"})
+    Float32.json_schema.should eq({type: "number", format: "Float32"})
+
+    Time.json_schema.should eq({type: "string", format: "date-time"})
+    UUID.json_schema.should eq({type: "string", format: "uuid"})
 
     TestEnum.json_schema.should eq({type: "string", enum: ["option1", "option2"]})
-    Hash(String, Int32 | Float32).json_schema.should eq({type: "object", additionalProperties: {anyOf: [{type: "number"}, {type: "integer"}]}})
+    Hash(String, Int32 | Float32).json_schema.should eq({type: "object", additionalProperties: {anyOf: [{type: "number", format: "Float32"}, {type: "integer", format: "Int32"}]}})
 
-    TestGenericInheritance.json_schema.should eq({type: "object", additionalProperties: {type: "integer"}})
+    TestGenericInheritance.json_schema.should eq({type: "object", additionalProperties: {type: "integer", format: "Int32"}})
 
-    Array(Int32).json_schema.should eq({type: "array", items: {type: "integer"}})
-    SuperArray.json_schema.should eq({type: "array", items: {type: "integer"}})
+    Array(Int32).json_schema.should eq({type: "array", items: {type: "integer", format: "Int32"}})
+    SuperArray.json_schema.should eq({type: "array", items: {type: "integer", format: "Int32"}})
 
     # empty named tuple
     NamedTuple.new.class.json_schema.should eq({type: "object", properties: {} of Symbol => Nil})
@@ -22,14 +25,14 @@ describe JSON::Schema do
     Array(String | Int32).json_schema.should eq({
       type:  "array",
       items: {
-        anyOf: [{type: "integer"}, {type: "string"}],
+        anyOf: [{type: "integer", format: "Int32"}, {type: "string"}],
       },
     })
 
     Set(String | Int32).json_schema.should eq({
       type:  "array",
       items: {
-        anyOf: [{type: "integer"}, {type: "string"}],
+        anyOf: [{type: "integer", format: "Int32"}, {type: "string"}],
       },
     })
   end
@@ -40,14 +43,15 @@ describe JSON::Schema do
       properties: {
         options:  {type: "string", enum: ["option1", "option2"]},
         string:   {type: "string"},
-        symbol:   {type: "string"},
-        integer:  {type: "integer"},
+        symbol:   {type: "string", format: "custom"},
+        time:     {type: "integer", format: "Int64"},
+        integer:  {type: "integer", format: "Int32"},
         bool:     {type: "boolean"},
         null:     {type: "null"},
-        optional: {anyOf: [{type: "integer"}, {type: "null"}]},
+        optional: {anyOf: [{type: "integer", format: "Int64"}, {type: "null"}]},
         hash:     {type: "object", additionalProperties: {type: "string"}},
       },
-      required: ["options", "string", "symbol", "integer", "bool", "hash"],
+      required: ["options", "string", "symbol", "time", "integer", "bool", "hash"],
     })
   end
 
@@ -60,19 +64,20 @@ describe JSON::Schema do
           properties: {
             options:  {type: "string", enum: ["option1", "option2"]},
             string:   {type: "string"},
-            symbol:   {type: "string"},
-            integer:  {type: "integer"},
+            symbol:   {type: "string", format: "custom"},
+            time:     {type: "integer", format: "Int64"},
+            integer:  {type: "integer", format: "Int32"},
             bool:     {type: "boolean"},
             null:     {type: "null"},
-            optional: {anyOf: [{type: "integer"}, {type: "null"}]},
+            optional: {anyOf: [{type: "integer", format: "Int64"}, {type: "null"}]},
             hash:     {type: "object", additionalProperties: {type: "string"}},
           },
-          required: ["options", "string", "symbol", "integer", "bool", "hash"],
+          required: ["options", "string", "symbol", "time", "integer", "bool", "hash"],
         },
-        array:       {type: "array", items: {anyOf: [{type: "integer"}, {type: "string"}]}},
-        tuple:       {type: "array", items: [{type: "string"}, {type: "integer"}, {type: "number"}]},
-        named_tuple: {type: "object", properties: {test: {type: "string"}, other: {type: "integer"}}, required: ["test", "other"]},
-        union_type:  {anyOf: [{type: "boolean"}, {type: "integer"}, {type: "string"}]},
+        array:       {type: "array", items: {anyOf: [{type: "integer", format: "Int32"}, {type: "string"}]}},
+        tuple:       {type: "array", items: [{type: "string"}, {type: "integer", format: "Int32"}, {type: "number", format: "Float64"}]},
+        named_tuple: {type: "object", properties: {test: {type: "string"}, other: {type: "integer", format: "Int64"}}, required: ["test", "other"]},
+        union_type:  {anyOf: [{type: "boolean"}, {type: "integer", format: "Int64"}, {type: "string"}]},
       },
       required: ["sub_object", "array", "tuple", "named_tuple", "union_type"],
     })

@@ -68,4 +68,26 @@ MyType.json_schema
 
 ```
 
+You can also customize schema output using the `@[JSON::Field]` annotation
+
+```crystal
+
+require "json-schema"
+
+class MyType
+  include JSON::Serializable
+
+  # The `EpochConverter` here means the JSON value will actually be an integer
+  # so to avoid the output being `type: "string", format: "date-time"` you can
+  # supply a type override and custom format string.
+  @[JSON::Field(converter: Time::EpochConverter, type: "integer", format: "Int64")]
+  getter time : Time
+
+  # or if you just want to provide a custom format
+  @[JSON::Field(format: "email")]
+  getter email : String
+end
+
+```
+
 for anything too confusing it falls back to a generic `{ type: "object" }` however this should only happen in some cases where you've inherited generic objects. e.g. `class Me < Hash(String, Int32)` (although this case is handled correctly)

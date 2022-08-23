@@ -11,7 +11,10 @@ class Example1
 
   getter options : TestEnum
   getter string : String
+  @[JSON::Field(format: "custom")]
   getter symbol : Symbol
+  @[JSON::Field(converter: Time::EpochConverter, type: "integer", format: "Int64")]
+  getter time : Time
   getter integer : Int32
   getter bool : Bool
   getter null : Nil

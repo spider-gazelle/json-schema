@@ -1,4 +1,5 @@
 require "json"
+require "uuid"
 
 module JSON
   module Schema
@@ -8,7 +9,7 @@ module JSON
         {% for ivar in @type.instance_vars %}
           {% ann = ivar.annotation(::JSON::Field) %}
           {% unless ann && (ann[:ignore] || ann[:ignore_deserialize]) %}
-            {% properties[((ann && ann[:key]) || ivar).id] = {ivar.type.resolve, (ann && ann[:converter])} %}
+            {% properties[((ann && ann[:key]) || ivar).id] = {ivar.type.resolve, (ann && ann[:converter]), (ann && ann[:format]), (ann && ann[:type])} %}
           {% end %}
         {% end %}
 
@@ -19,6 +20,8 @@ module JSON
             {% for key, details in properties %}
               {% ivar = details[0] %}
               {% converter = details[1] %}
+              {% format_hint = details[2] %}
+              {% type_override = details[3] %}
               {% if ivar < Enum && converter %}
                 # we don't specify the type of the enum as we don't know what will be output
                 # all we know is that it can be parsed as JSON
@@ -28,7 +31,7 @@ module JSON
                   {% end %}
                 ]},
               {% else %}
-                {{key}}: ::JSON::Schema.introspect({{ivar.name}}),
+                {{key}}: ::JSON::Schema.introspect({{ivar.name}}, {{format_hint}}, {{type_override}}),
               {% end %}
             {% end %}
           },
@@ -51,7 +54,7 @@ module JSON
       {% end %}
     end
 
-    macro introspect(klass)
+    macro introspect(klass, format_hint = nil, type_override = nil)
       {% arg_name = klass.stringify %}
       {% if !arg_name.starts_with?("Union") && arg_name.includes?("|") %}
         ::JSON::Schema.introspect(Union({{klass}}))
@@ -108,15 +111,19 @@ module JSON
         {% elsif klass < Enum %}
           {type: "string",  enum: {{klass.constants.map(&.stringify.underscore)}} }
         {% elsif klass <= String || klass <= Symbol %}
-          { type: "string" }
+          { type: {{type_override || "string"}}{% if format_hint %}, format: {{format_hint}}{% end %} }
         {% elsif klass <= Bool %}
-          { type: "boolean" }
+          { type: {{type_override || "boolean"}}{% if format_hint %}, format: {{format_hint}}{% end %} }
         {% elsif klass <= Int %}
-          { type: "integer" }
+          { type: {{type_override || "integer"}}, format: {{format_hint || klass.stringify}} }
         {% elsif klass <= Float %}
-          { type: "number" }
+          { type: {{type_override || "number"}}, format: {{format_hint || klass.stringify}} }
         {% elsif klass <= Nil %}
-          { type: "null" }
+          { type: {{type_override || "null"}}{% if format_hint %}, format: {{format_hint}}{% end %} }
+        {% elsif klass <= Time %}
+          { type: {{type_override || "string"}}, format: {{format_hint || "date-time"}} }
+        {% elsif klass <= UUID %}
+          { type: {{type_override || "string"}}, format: {{format_hint || "uuid"}} }
         {% elsif klass <= Hash %}
           {% if klass.type_vars.size == 2 %}
             { type: "object", additionalProperties: ::JSON::Schema.introspect({{klass.type_vars[1]}}) }
@@ -149,7 +156,7 @@ end
 
 # Inject helper into other common klasses
 {% begin %}
-  {% structs = {Nil, Bool, Int, Float, Symbol, Set, Tuple, NamedTuple, Enum} %}
+  {% structs = {Nil, Bool, Int, Float, Symbol, Set, Tuple, NamedTuple, Enum, Time, UUID} %}
   {% for klass in structs %}
     struct ::{{klass}}
       def self.json_schema
