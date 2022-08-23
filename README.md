@@ -1,4 +1,4 @@
-# JSON Schema
+# JSON Schema [![CI](https://github.com/spider-gazelle/json-schema/actions/workflows/ci.yml/badge.svg)](https://github.com/spider-gazelle/json-schema/actions/workflows/ci.yml)
 
 A crystal lang tool for converting JSON serialisable class definitions into the [JSON Schema](https://json-schema.org/) representation.
 
