@@ -82,4 +82,25 @@ describe JSON::Schema do
       required: ["sub_object", "array", "tuple", "named_tuple", "union_type"],
     })
   end
+
+  it "works with OpenAPI modifications" do
+    ::JSON::Schema.introspect(Int32?, openapi: true).should eq({type: "integer", format: "Int32", nullable: true})
+    ::JSON::Schema.introspect((String | Int32?), openapi: true).should eq({anyOf: [{type: "integer", format: "Int32"}, {type: "string"}], nullable: true})
+    ::JSON::Schema.introspect(Example1?, openapi: true).should eq({
+      type:       "object",
+      properties: {
+        options:  {type: "string", enum: ["option1", "option2"]},
+        string:   {type: "string"},
+        symbol:   {type: "string", format: "custom"},
+        time:     {type: "integer", format: "Int64"},
+        integer:  {type: "integer", format: "Int32", minimum: 0, maximum: 100},
+        bool:     {type: "boolean"},
+        null:     {type: "null"},
+        optional: {type: "integer", format: "Int64", nullable: true},
+        hash:     {type: "object", additionalProperties: {type: "string"}},
+      },
+      required: ["options", "string", "symbol", "time", "integer", "bool", "hash"],
+      nullable: true,
+    })
+  end
 end
