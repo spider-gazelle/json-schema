@@ -30,6 +30,8 @@ class Example2
   getter array : Array(String | Int32)
   getter tuple : Tuple(String, Int32, Float64)
   getter named_tuple : NamedTuple(test: String, other: Int64)
+
+  @[JSON::Field(description: "a string an int or a bool")]
   getter union_type : String | Int64 | Bool
 end
 

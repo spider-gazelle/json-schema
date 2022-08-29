@@ -57,6 +57,7 @@ module JSON
       {% format_hint = (args && args[:format]) %}
       {% type_override = (args && args[:type]) %}
       {% pattern = (args && args[:pattern]) %}
+      {% description = (args && args[:description]) %}
 
       {% arg_name = klass.stringify %}
       {% if !arg_name.starts_with?("Union") && arg_name.includes?("|") %}
@@ -69,16 +70,16 @@ module JSON
         {% if klass <= Array || klass <= Set %}
           {% if klass.type_vars.size == 1 %}
             %has_items = ::JSON::Schema.introspect({{klass.type_vars[0]}}, nil, {{openapi}})
-            {type: "array", items: %has_items}
+            {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items}
           {% else %}
             # handle inheritance (no access to type_var / unknown value)
             %klass = {{klass.ancestors[0]}}
-            %klass.responds_to?(:json_schema) ? %klass.json_schema : {type: "array"}
+            %klass.responds_to?(:json_schema) ? %klass.json_schema({{openapi}}) : { type: "array"{% if description %}, description: {{description}}{% end %} }
           {% end %}
         {% elsif klass.union? && !openapi.nil? && nillable && klass.union_types.size == 2 %}
           {% for type in klass.union_types %}
             {% if type.stringify != "Nil" %}
-              ::JSON::Schema.introspect({{type}}, nil, {{openapi}}).merge({
+              ::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}).merge({
                 nullable: true
               })
             {% end %}
@@ -90,19 +91,19 @@ module JSON
                 ::JSON::Schema.introspect({{type}}, nil, {{openapi}}),
               {% end %}
             {% end %}
-          ]{% if !openapi.nil? && nillable %}, nullable: true{% end %} }
+          ]{% if !openapi.nil? && nillable %}, nullable: true{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass_name.starts_with? "Tuple(" %}
           %has_items = [
             {% for generic in klass.type_vars %}
               ::JSON::Schema.introspect({{generic}}, nil, {{openapi}}),
             {% end %}
           ]
-          {type: "array", items: %has_items}
+          {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items}
         {% elsif klass_name.starts_with? "NamedTuple(" %}
           {% if klass.keys.empty? %}
-            {type: "object",  properties: {} of Symbol => Nil}
+            {type: "object"{% if description %}, description: {{description}}{% end %},  properties: {} of Symbol => Nil}
           {% else %}
-            {type: "object",  properties: {
+            {type: "object"{% if description %}, description: {{description}}{% end %},  properties: {
               {% for key in klass.keys %}
                 {{key.id}}: ::JSON::Schema.introspect({{klass[key].resolve.name}}, nil, {{openapi}}),
               {% end %}
@@ -123,13 +124,13 @@ module JSON
             }
           {% end %}
         {% elsif klass < Enum %}
-          {type: "string",  enum: {{klass.constants.map(&.stringify.underscore)}} }
+          {type: "string",  enum: {{klass.constants.map(&.stringify.underscore)}}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= String || klass <= Symbol %}
           {% min_length = (args && args[:min_length]) %}
           {% max_length = (args && args[:max_length]) %}
-          { type: {{type_override || "string"}}{% if format_hint %}, format: {{format_hint}}{% end %}{% if pattern %}, pattern: {{pattern}}{% end %}{% if min_length %}, minLength: {{min_length}}{% end %}{% if max_length %}, maxLength: {{max_length}}{% end %} }
+          { type: {{type_override || "string"}}{% if format_hint %}, format: {{format_hint}}{% end %}{% if pattern %}, pattern: {{pattern}}{% end %}{% if min_length %}, minLength: {{min_length}}{% end %}{% if max_length %}, maxLength: {{max_length}}{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= Bool %}
-          { type: {{type_override || "boolean"}}{% if format_hint %}, format: {{format_hint}}{% end %} }
+          { type: {{type_override || "boolean"}}{% if format_hint %}, format: {{format_hint}}{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= Int || klass <= Float %}
           {% multiple_of = (args && args[:multiple_of]) %}
           {% minimum = (args && args[:minimum]) %}
@@ -137,23 +138,23 @@ module JSON
           {% maximum = (args && args[:maximum]) %}
           {% exclusive_maximum = (args && args[:exclusive_maximum]) %}
           {% if klass <= Int %}
-            { type: {{type_override || "integer"}}, format: {{format_hint || klass.stringify}}{% if multiple_of %}, multipleOf: {{multiple_of}}{% end %}{% if minimum %}, minimum: {{minimum}}{% end %}{% if exclusive_minimum %}, exclusiveMinimum: {{exclusive_minimum}}{% end %}{% if maximum %}, maximum: {{maximum}}{% end %}{% if exclusive_maximum %}, exclusiveMaximum: {{exclusive_maximum}}{% end %} }
+            { type: {{type_override || "integer"}}, format: {{format_hint || klass.stringify}}{% if multiple_of %}, multipleOf: {{multiple_of}}{% end %}{% if minimum %}, minimum: {{minimum}}{% end %}{% if exclusive_minimum %}, exclusiveMinimum: {{exclusive_minimum}}{% end %}{% if maximum %}, maximum: {{maximum}}{% end %}{% if exclusive_maximum %}, exclusiveMaximum: {{exclusive_maximum}}{% end %}{% if description %}, description: {{description}}{% end %} }
           {% elsif klass <= Float %}
-            { type: {{type_override || "number"}}, format: {{format_hint || klass.stringify}}{% if multiple_of %}, multipleOf: {{multiple_of}}{% end %}{% if minimum %}, minimum: {{minimum}}{% end %}{% if exclusive_minimum %}, exclusiveMinimum: {{exclusive_minimum}}{% end %}{% if maximum %}, maximum: {{maximum}}{% end %}{% if exclusive_maximum %}, exclusiveMaximum: {{exclusive_maximum}}{% end %} }
+            { type: {{type_override || "number"}}, format: {{format_hint || klass.stringify}}{% if multiple_of %}, multipleOf: {{multiple_of}}{% end %}{% if minimum %}, minimum: {{minimum}}{% end %}{% if exclusive_minimum %}, exclusiveMinimum: {{exclusive_minimum}}{% end %}{% if maximum %}, maximum: {{maximum}}{% end %}{% if exclusive_maximum %}, exclusiveMaximum: {{exclusive_maximum}}{% end %}{% if description %}, description: {{description}}{% end %} }
           {% end %}
         {% elsif klass <= Nil %}
-          { type: {{type_override || "null"}}{% if format_hint %}, format: {{format_hint}}{% end %} }
+          { type: {{type_override || "null"}}{% if format_hint %}, format: {{format_hint}}{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= Time %}
-          { type: {{type_override || "string"}}, format: {{format_hint || "date-time"}}{% if pattern %}, pattern: {{pattern}}{% end %} }
+          { type: {{type_override || "string"}}, format: {{format_hint || "date-time"}}{% if pattern %}, pattern: {{pattern}}{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= UUID %}
-          { type: {{type_override || "string"}}, format: {{format_hint || "uuid"}}{% if pattern %}, pattern: {{pattern}}{% end %} }
+          { type: {{type_override || "string"}}, format: {{format_hint || "uuid"}}{% if pattern %}, pattern: {{pattern}}{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= Hash %}
           {% if klass.type_vars.size == 2 %}
             { type: "object", additionalProperties: ::JSON::Schema.introspect({{klass.type_vars[1]}}, nil, {{openapi}}) }
           {% else %}
             # As inheritance might include the type_vars it's hard to work them out
             %klass = {{klass.ancestors[0]}}
-            %klass.responds_to?(:json_schema) ? %klass.json_schema({{openapi}}) : { type: "object" }
+            %klass.responds_to?(:json_schema) ? %klass.json_schema({{openapi}}) : { type: "object"{% if description %}, description: {{description}}{% end %} }
           {% end %}
         {% elsif klass.ancestors.includes? JSON::Serializable %}
           {{klass}}.json_schema({{openapi}})
@@ -163,7 +164,7 @@ module JSON
             %klass.json_schema({{openapi}})
           else
             # anything will validate (JSON::Any)
-            { type: "object" }
+            { type: "object"{% if description %}, description: {{description}}{% end %} }
           end
         {% end %}
       {% end %}

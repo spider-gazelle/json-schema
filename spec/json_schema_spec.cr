@@ -77,7 +77,7 @@ describe JSON::Schema do
         array:       {type: "array", items: {anyOf: [{type: "integer", format: "Int32"}, {type: "string"}]}},
         tuple:       {type: "array", items: [{type: "string"}, {type: "integer", format: "Int32"}, {type: "number", format: "Float64"}]},
         named_tuple: {type: "object", properties: {test: {type: "string"}, other: {type: "integer", format: "Int64"}}, required: ["test", "other"]},
-        union_type:  {anyOf: [{type: "boolean"}, {type: "integer", format: "Int64"}, {type: "string"}]},
+        union_type:  {anyOf: [{type: "boolean"}, {type: "integer", format: "Int64"}, {type: "string"}], description: "a string an int or a bool"},
       },
       required: ["sub_object", "array", "tuple", "named_tuple", "union_type"],
     })
