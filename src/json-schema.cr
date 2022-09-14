@@ -79,9 +79,7 @@ module JSON
         {% elsif klass.union? && !openapi.nil? && nillable && klass.union_types.size == 2 %}
           {% for type in klass.union_types %}
             {% if type.stringify != "Nil" %}
-              ::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}).merge({
-                nullable: true
-              })
+              JSON.parse(::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}).to_json[0..-2] + %(,"nullable":true}))
             {% end %}
           {% end %}
         {% elsif klass.union? %}
