@@ -12,7 +12,7 @@ describe JSON::Schema do
     UUID.json_schema.should eq({type: "string", format: "uuid"})
 
     TestEnum.json_schema.should eq({type: "string", enum: ["option1", "option2"]})
-    Hash(String, Int32 | Float32).json_schema.should eq({type: "object", additionalProperties: {anyOf: [{type: "number", format: "Float32"}, {type: "integer", format: "Int32"}]}})
+    Hash(String, Int32 | Float32).json_schema.should eq({type: "object", additionalProperties: {anyOf: { {type: "number", format: "Float32"}, {type: "integer", format: "Int32"} }}})
 
     TestGenericInheritance.json_schema.should eq({type: "object", additionalProperties: {type: "integer", format: "Int32"}})
 
@@ -25,14 +25,14 @@ describe JSON::Schema do
     Array(String | Int32).json_schema.should eq({
       type:  "array",
       items: {
-        anyOf: [{type: "integer", format: "Int32"}, {type: "string"}],
+        anyOf: { {type: "integer", format: "Int32"}, {type: "string"} },
       },
     })
 
     Set(String | Int32).json_schema.should eq({
       type:  "array",
       items: {
-        anyOf: [{type: "integer", format: "Int32"}, {type: "string"}],
+        anyOf: { {type: "integer", format: "Int32"}, {type: "string"} },
       },
     })
   end
@@ -48,7 +48,7 @@ describe JSON::Schema do
         integer:  {type: "integer", format: "Int32", minimum: 0, maximum: 100},
         bool:     {type: "boolean"},
         null:     {type: "null"},
-        optional: {anyOf: [{type: "integer", format: "Int64"}, {type: "null"}]},
+        optional: {anyOf: { {type: "integer", format: "Int64"}, {type: "null"} }},
         hash:     {type: "object", additionalProperties: {type: "string"}},
       },
       required: ["options", "string", "symbol", "time", "integer", "bool", "hash"],
@@ -69,38 +69,38 @@ describe JSON::Schema do
             integer:  {type: "integer", format: "Int32", minimum: 0, maximum: 100},
             bool:     {type: "boolean"},
             null:     {type: "null"},
-            optional: {anyOf: [{type: "integer", format: "Int64"}, {type: "null"}]},
+            optional: {anyOf: { {type: "integer", format: "Int64"}, {type: "null"} }},
             hash:     {type: "object", additionalProperties: {type: "string"}},
           },
           required: ["options", "string", "symbol", "time", "integer", "bool", "hash"],
         },
-        array:       {type: "array", items: {anyOf: [{type: "integer", format: "Int32"}, {type: "string"}]}},
-        tuple:       {type: "array", items: [{type: "string"}, {type: "integer", format: "Int32"}, {type: "number", format: "Float64"}]},
+        array:       {type: "array", items: {anyOf: { {type: "integer", format: "Int32"}, {type: "string"} }}},
+        tuple:       {type: "array", items: { {type: "string"}, {type: "integer", format: "Int32"}, {type: "number", format: "Float64"} }},
         named_tuple: {type: "object", properties: {test: {type: "string"}, other: {type: "integer", format: "Int64"}}, required: ["test", "other"]},
-        union_type:  {anyOf: [{type: "boolean"}, {type: "integer", format: "Int64"}, {type: "string"}], description: "a string an int or a bool"},
+        union_type:  {anyOf: { {type: "boolean"}, {type: "integer", format: "Int64"}, {type: "string"} }, description: "a string an int or a bool"},
       },
       required: ["sub_object", "array", "tuple", "named_tuple", "union_type"],
     })
   end
 
   it "works with OpenAPI modifications" do
-    ::JSON::Schema.introspect(Int32?, openapi: true).should eq({type: "integer", format: "Int32", nullable: true})
-    ::JSON::Schema.introspect((String | Int32?), openapi: true).should eq({anyOf: [{type: "integer", format: "Int32"}, {type: "string"}], nullable: true})
+    ::JSON::Schema.introspect(Int32?, openapi: true).should eq({"type" => "integer", "format" => "Int32", "nullable" => true})
+    ::JSON::Schema.introspect((String | Int32?), openapi: true).should eq({anyOf: { {type: "integer", format: "Int32"}, {type: "string"} }, nullable: true})
     ::JSON::Schema.introspect(Example1?, openapi: true).should eq({
-      type:       "object",
-      properties: {
-        options:  {type: "string", enum: ["option1", "option2"]},
-        string:   {type: "string"},
-        symbol:   {type: "string", format: "custom"},
-        time:     {type: "integer", format: "Int64"},
-        integer:  {type: "integer", format: "Int32", minimum: 0, maximum: 100},
-        bool:     {type: "boolean"},
-        null:     {type: "null"},
-        optional: {type: "integer", format: "Int64", nullable: true},
-        hash:     {type: "object", additionalProperties: {type: "string"}},
+      "type"       => "object",
+      "properties" => {
+        "options"  => {"type" => "string", "enum" => ["option1", "option2"]},
+        "string"   => {"type" => "string"},
+        "symbol"   => {"type" => "string", "format" => "custom"},
+        "time"     => {"type" => "integer", "format" => "Int64"},
+        "integer"  => {"type" => "integer", "format" => "Int32", "minimum" => 0, "maximum" => 100},
+        "bool"     => {"type" => "boolean"},
+        "null"     => {"type" => "null"},
+        "optional" => {"type" => "integer", "format" => "Int64", "nullable" => true},
+        "hash"     => {"type" => "object", "additionalProperties" => {"type" => "string"}},
       },
-      required: ["options", "string", "symbol", "time", "integer", "bool", "hash"],
-      nullable: true,
+      "required" => ["options", "string", "symbol", "time", "integer", "bool", "hash"],
+      "nullable" => true,
     })
   end
 end
