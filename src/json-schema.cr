@@ -79,25 +79,23 @@ module JSON
         {% elsif klass.union? && !openapi.nil? && nillable && klass.union_types.size == 2 %}
           {% for type in klass.union_types %}
             {% if type.stringify != "Nil" %}
-              ::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}).merge({
-                nullable: true
-              })
+              JSON.parse(::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}).to_json[0..-2] + %(,"nullable":true}))
             {% end %}
           {% end %}
         {% elsif klass.union? %}
-          { anyOf: [
+          { anyOf: {
             {% for type in klass.union_types %}
               {% if openapi.nil? || type.stringify != "Nil" %}
                 ::JSON::Schema.introspect({{type}}, nil, {{openapi}}),
               {% end %}
             {% end %}
-          ]{% if !openapi.nil? && nillable %}, nullable: true{% end %}{% if description %}, description: {{description}}{% end %} }
+          }{% if !openapi.nil? && nillable %}, nullable: true{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass_name.starts_with? "Tuple(" %}
-          %has_items = [
+          %has_items = {
             {% for generic in klass.type_vars %}
               ::JSON::Schema.introspect({{generic}}, nil, {{openapi}}),
             {% end %}
-          ]
+          }
           {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items}
         {% elsif klass_name.starts_with? "NamedTuple(" %}
           {% if klass.keys.empty? %}
@@ -143,7 +141,7 @@ module JSON
             { type: {{type_override || "number"}}, format: {{format_hint || klass.stringify}}{% if multiple_of %}, multipleOf: {{multiple_of}}{% end %}{% if minimum %}, minimum: {{minimum}}{% end %}{% if exclusive_minimum %}, exclusiveMinimum: {{exclusive_minimum}}{% end %}{% if maximum %}, maximum: {{maximum}}{% end %}{% if exclusive_maximum %}, exclusiveMaximum: {{exclusive_maximum}}{% end %}{% if description %}, description: {{description}}{% end %} }
           {% end %}
         {% elsif klass <= Nil %}
-          { type: {{type_override || "null"}}{% if format_hint %}, format: {{format_hint}}{% end %}{% if description %}, description: {{description}}{% end %} }
+          { type: {{type_override || "null"}}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= Time %}
           { type: {{type_override || "string"}}, format: {{format_hint || "date-time"}}{% if pattern %}, pattern: {{pattern}}{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= UUID %}
