@@ -26,7 +26,7 @@ module JSON
                 # all we know is that it can be parsed as JSON
                 {{key}}: { enum: [
                   {% for const in ivar.constants %}
-                    JSON.parse({{converter.resolve}}.to_json({{ivar.name}}::{{const}})),
+                    JSON.parse({{converter.resolve}}.to_json({{ivar.name}}::{{const}}).as(String)),
                   {% end %}
                 ]},
               {% else %}
