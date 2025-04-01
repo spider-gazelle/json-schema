@@ -103,4 +103,17 @@ describe JSON::Schema do
       "nullable" => true,
     })
   end
+
+  it "generates JSON schema for complex example with some keys containing non-standard literals" do
+    Example3.json_schema.should eq({
+      type:       "object",
+      properties: {
+        "@odata.context":  {type: "string"},
+        "@odata.count":    {type: "integer", format: "Int32"},
+        "@odata.nextLink": {anyOf: { {type: "null"}, {type: "string"} }},
+        hash:              {type: "object", additionalProperties: {type: "string"}},
+      },
+      required: ["@odata.context", "@odata.count", "hash"],
+    })
+  end
 end

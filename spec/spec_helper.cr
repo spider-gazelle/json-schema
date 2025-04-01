@@ -40,3 +40,17 @@ end
 
 class SuperArray < Array(Int32)
 end
+
+class Example3
+  include JSON::Serializable
+  @[JSON::Field(key: "@odata.context")]
+  getter context : String
+
+  @[JSON::Field(key: "@odata.count")]
+  getter count : Int32
+
+  @[JSON::Field(key: "@odata.nextLink")]
+  getter next_link : String?
+
+  getter hash : Hash(Symbol, String)
+end

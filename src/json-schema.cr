@@ -21,6 +21,8 @@ module JSON
               {% ivar = details[0] %}
               {% converter = details[1] %}
               {% args = details[2] %}
+              {% key_str = key.stringify %}
+              {% key = key_str.includes?('@') || key_str.includes?('-') || key_str.includes?(' ') || key_str.starts_with?('$') ? key_str : key %}
               {% if ivar < Enum && converter %}
                 # we don't specify the type of the enum as we don't know what will be output
                 # all we know is that it can be parsed as JSON
