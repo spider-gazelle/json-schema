@@ -17,7 +17,7 @@ class Example1
   getter time : Time
   @[JSON::Field(minimum: 0, maximum: 100)]
   getter integer : Int32
-  getter bool : Bool
+  getter? bool : Bool
   getter null : Nil
   getter optional : Int64?
   getter hash : Hash(Symbol, String)
