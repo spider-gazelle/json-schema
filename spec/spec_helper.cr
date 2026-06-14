@@ -54,3 +54,13 @@ class Example3
 
   getter hash : Hash(Symbol, String)
 end
+
+class Example4
+  include JSON::Serializable
+
+  @[JSON::Field(description: "A nested configuration block")]
+  getter sub : Example1
+
+  @[JSON::Field(description: "Mapping of category names to option lists")]
+  getter categories : Hash(String, Array(String))
+end

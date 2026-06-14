@@ -43,13 +43,11 @@ module JSON
                 {% required << key.stringify %}
               {% end %}
             {% end %}
-            {% unless required.empty? %}
-              required: [
+            required: [
               {% for key in required %}
                 {{key}},
               {% end %}
-              ]
-            {% end %}
+            ] of String
           }
         {% end %}
       {% end %}
@@ -114,13 +112,11 @@ module JSON
                   {% required << key.id.stringify %}
                 {% end %}
               {% end %}
-              {% if !required.empty? %}
-                required: [
+              required: [
                 {% for key in required %}
                   {{key}},
                 {% end %}
-                ]
-              {% end %}
+              ] of String
             }
           {% end %}
         {% elsif klass < Enum %}
@@ -150,14 +146,19 @@ module JSON
           { type: {{type_override || "string"}}, format: {{format_hint || "uuid"}}{% if pattern %}, pattern: {{pattern}}{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= Hash %}
           {% if klass.type_vars.size == 2 %}
-            { type: "object", additionalProperties: ::JSON::Schema.introspect({{klass.type_vars[1]}}, nil, {{openapi}}) }
+            { type: "object"{% if description %}, description: {{description}}{% end %}, additionalProperties: ::JSON::Schema.introspect({{klass.type_vars[1]}}, nil, {{openapi}}) }
           {% else %}
             # As inheritance might include the type_vars it's hard to work them out
             %klass = {{klass.ancestors[0]}}
             %klass.responds_to?(:json_schema) ? %klass.json_schema({{openapi}}) : { type: "object"{% if description %}, description: {{description}}{% end %} }
           {% end %}
         {% elsif klass.ancestors.includes? JSON::Serializable %}
-          {{klass}}.json_schema({{openapi}})
+          %sch = {{klass}}.json_schema({{openapi}})
+          {% if description %}
+            { type: %sch[:type], description: {{description}}, properties: %sch[:properties], required: %sch[:required] }
+          {% else %}
+            %sch
+          {% end %}
         {% else %}
           %klass = {{klass}}
           if %klass.responds_to?(:json_schema)
