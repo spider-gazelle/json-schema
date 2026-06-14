@@ -104,6 +104,36 @@ describe JSON::Schema do
     })
   end
 
+  it "includes description annotations on Hash and nested JSON::Serializable struct fields" do
+    Example4.json_schema.should eq({
+      type:       "object",
+      properties: {
+        sub: {
+          type:        "object",
+          description: "A nested configuration block",
+          properties:  {
+            options:  {type: "string", enum: ["option1", "option2"]},
+            string:   {type: "string"},
+            symbol:   {type: "string", format: "custom"},
+            time:     {type: "integer", format: "Int64"},
+            integer:  {type: "integer", format: "Int32", minimum: 0, maximum: 100},
+            bool:     {type: "boolean"},
+            null:     {type: "null"},
+            optional: {anyOf: { {type: "integer", format: "Int64"}, {type: "null"} }},
+            hash:     {type: "object", additionalProperties: {type: "string"}},
+          },
+          required: ["options", "string", "symbol", "time", "integer", "bool", "hash"],
+        },
+        categories: {
+          type:                 "object",
+          description:          "Mapping of category names to option lists",
+          additionalProperties: {type: "array", items: {type: "string"}},
+        },
+      },
+      required: ["sub", "categories"],
+    })
+  end
+
   it "generates JSON schema for complex example with some keys containing non-standard literals" do
     Example3.json_schema.should eq({
       type:       "object",
