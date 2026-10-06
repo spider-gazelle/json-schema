@@ -32,7 +32,28 @@ module JSON::Schema
     end
 
     def self.new(prefix : String = "#/$defs/")
-      new(prefix, &.gsub(/[^0-9a-zA-Z_]/, '_'))
+      new(prefix) { |type_name| normalise(type_name) }
+    end
+
+    # :nodoc:
+    ESCAPES = {"::" => ".", "(" => "-o", ")" => "-c", ", " => "-n", " | " => "-p"}
+
+    # converts a type name into a definition name, using only the characters that OpenAPI
+    # allows in component names (`[a-zA-Z0-9._-]`).
+    #
+    # The conversion is reversible, so distinct types never share a name. `.` and `-`
+    # never appear in a type name, they encode its separators: `::` is `.`, `(`, `)`, `, `
+    # and ` | ` are `-o`, `-c`, `-n` and `-p`, and any other character is `-u` followed by
+    # its six digit hex code point.
+    #
+    # ```
+    # normalise("Api::User")       # => "Api.User"
+    # normalise("Page(Api::User)") # => "Page-oApi.User-c"
+    # ```
+    def self.normalise(type_name : String) : String
+      type_name.gsub(/::|, | \| |[^0-9a-zA-Z_]/) do |match|
+        ESCAPES[match]? || "-u%06X" % match[0].ord
+      end
     end
 
     # registers the type, returning a reference to its definition

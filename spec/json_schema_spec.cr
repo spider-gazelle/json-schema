@@ -192,12 +192,12 @@ describe JSON::Schema do
       refs = JSON::Schema::Definitions.new("#/components/schemas/")
       schema = ::JSON::Schema.introspect(RefPage(RefList), openapi: true, refs: refs)
       refs.reference?(schema).should be_true
-      schema.should eq JSON.parse({"$ref" => "#/components/schemas/RefPage_RefList_"}.to_json)
+      schema.should eq JSON.parse({"$ref" => "#/components/schemas/RefPage-oRefList-c"}.to_json)
 
       definitions = refs.resolve
-      definitions.keys.sort!.should eq ["OtherEnum", "RefItem", "RefList", "RefPage_RefList_", "TestEnum"]
-      definitions["RefPage_RefList_"]["properties"]["page"].should eq JSON.parse({"type" => "array", "items" => {"$ref" => "#/components/schemas/RefList"}}.to_json)
-      refs.type_name("RefPage_RefList_").should eq "RefPage(RefList)"
+      definitions.keys.sort!.should eq ["OtherEnum", "RefItem", "RefList", "RefPage-oRefList-c", "TestEnum"]
+      definitions["RefPage-oRefList-c"]["properties"]["page"].should eq JSON.parse({"type" => "array", "items" => {"$ref" => "#/components/schemas/RefList"}}.to_json)
+      refs.type_name("RefPage-oRefList-c").should eq "RefPage(RefList)"
     end
 
     it "supports self referencing types" do
@@ -221,7 +221,23 @@ describe JSON::Schema do
       refs.resolve.keys.sort!.should eq ["RefItem", "TestEnum"]
     end
 
-    it "raises when two types share a definition name" do
+    it "names definitions so that distinct types never share a name" do
+      JSON::Schema::Definitions.normalise("McpWidgets::Widget").should eq "McpWidgets.Widget"
+      JSON::Schema::Definitions.normalise("Page(List)").should eq "Page-oList-c"
+      JSON::Schema::Definitions.normalise("Pair(A::B, C)").should eq "Pair-oA.B-nC-c"
+      JSON::Schema::Definitions.normalise("Pair(A, B::C)").should eq "Pair-oA-nB.C-c"
+      JSON::Schema::Definitions.normalise("(Bool | Nil)").should eq "-oBool-pNil-c"
+      JSON::Schema::Definitions.normalise("NamedTuple(a: Int32)").should eq "NamedTuple-oa-u00003A-u000020Int32-c"
+      JSON::Schema::Definitions.normalise("Snake_Case").should eq "Snake_Case"
+
+      refs = JSON::Schema::Definitions.new
+      schema = JSON.parse(RefAmbiguous.json_schema(refs: refs).to_json)
+      schema["properties"]["one"].should eq JSON.parse({"$ref" => "#/$defs/RefTagged-oRefA.RefB-nRefC-c"}.to_json)
+      schema["properties"]["two"].should eq JSON.parse({"$ref" => "#/$defs/RefTagged-oRefA-nRefB.RefC-c"}.to_json)
+      refs.resolve.size.should eq 2
+    end
+
+    it "raises when a custom namer gives two types the same name" do
       refs = JSON::Schema::Definitions.new { "Same" }
       expect_raises(ArgumentError, "JSON schema definition name 'Same' is used by both RefItem and OtherEnum") do
         RefList.json_schema(refs: refs)

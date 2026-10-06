@@ -125,3 +125,28 @@ struct RefHolder
   getter child : RefCustomChild
   getter optional : RefCustom?
 end
+
+# only the type names matter, `RefTagged(RefA::RefB, RefC)` vs `RefTagged(RefA, RefB::RefC)`
+module RefA
+  module RefB
+  end
+end
+
+module RefB
+  module RefC
+  end
+end
+
+module RefC
+end
+
+struct RefTagged(T, U)
+  include JSON::Serializable
+  getter value : Int32
+end
+
+struct RefAmbiguous
+  include JSON::Serializable
+  getter one : RefTagged(RefA::RefB, RefC)
+  getter two : RefTagged(RefA, RefB::RefC)
+end
