@@ -38,7 +38,8 @@ module JSON::Schema
     # registers the type, returning a reference to its definition
     #
     # `nullable` and `description` are siblings of the `$ref`, which OpenAPI 3.0 ignores,
-    # so the reference is wrapped in an `allOf` when they are provided
+    # so the reference is wrapped in an `allOf` when they are provided. OpenAPI 3.0.3 only
+    # applies `nullable` alongside a `type`, so the type of the definition is included
     def reference(klass : T.class, openapi : Bool? = nil, nullable : Bool = false, description : String? = nil) : JSON::Any forall T
       type_name = T.to_s
       unless name = @names[type_name]?
@@ -56,17 +57,35 @@ module JSON::Schema
       return ref unless nullable || description
 
       wrapped = {"allOf" => JSON::Any.new([ref])}
-      wrapped["nullable"] = JSON::Any.new(true) if nullable
+      if nullable
+        if type = schema_type(T, openapi)
+          wrapped["type"] = JSON::Any.new(type)
+        end
+        wrapped["nullable"] = JSON::Any.new(true)
+      end
       wrapped["description"] = JSON::Any.new(description) if description
       JSON::Any.new(wrapped)
     end
 
+    # a type that describes itself, `self.json_schema(openapi)`, is defined by that method.
+    # decided at compile time, instantiating the inline schema of a self referencing type
+    # would recurse infinitely
     private def definition(klass : T.class, openapi : Bool?) forall T
       {% if ([T] + T.ancestors).any?(&.class.methods.any? { |method| method.name.stringify == "json_schema" && method.args.size == 1 }) %}
-        # a type that describes itself, `self.json_schema(openapi)`
         T.json_schema(openapi)
       {% else %}
         T.json_schema(openapi, self)
+      {% end %}
+    end
+
+    # the JSON type of a definition, without building it (it may reference itself)
+    private def schema_type(klass : T.class, openapi : Bool?) : String? forall T
+      {% if ([T] + T.ancestors).any?(&.class.methods.any? { |method| method.name.stringify == "json_schema" && method.args.size == 1 }) %}
+        JSON.parse(T.json_schema(openapi).to_json)["type"]?.try(&.as_s?)
+      {% elsif T < Enum %}
+        "string"
+      {% else %}
+        "object"
       {% end %}
     end
 

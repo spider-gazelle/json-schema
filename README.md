@@ -121,4 +121,4 @@ refs = JSON::Schema::Definitions.new("#/components/schemas/")
 JSON::Schema.introspect(Array(List), openapi: true, refs: refs)
 ```
 
-Types are named by type rather than by shape, so two enums with the same members are kept as separate definitions. A type that describes itself with `def self.json_schema(openapi : Bool? = nil)` is still referenced, and its definition comes from that method. A block passed to `Definitions.new` customises how type names become definition names. Siblings of a `$ref` (`nullable`, `description`) are ignored by OpenAPI 3.0, so in those cases the reference is wrapped in an `allOf`.
+Types are named by type rather than by shape, so two enums with the same members are kept as separate definitions. A type that describes itself with `def self.json_schema(openapi : Bool? = nil)` is still referenced, and its definition comes from that method. A block passed to `Definitions.new` customises how type names become definition names. Siblings of a `$ref` (`nullable`, `description`) are ignored by OpenAPI 3.0, so in those cases the reference is wrapped in an `allOf` (with the definition's `type`, which OpenAPI 3.0.3 requires alongside `nullable`).

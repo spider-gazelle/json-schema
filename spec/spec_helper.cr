@@ -123,4 +123,5 @@ struct RefHolder
   include JSON::Serializable
   getter custom : RefCustom
   getter child : RefCustomChild
+  getter optional : RefCustom?
 end

@@ -165,7 +165,7 @@ describe JSON::Schema do
         "type"       => "object",
         "properties" => {
           "items"    => {"type" => "array", "items" => item_ref},
-          "primary"  => {"allOf" => [item_ref], "nullable" => true},
+          "primary"  => {"allOf" => [item_ref], "type" => "object", "nullable" => true},
           "featured" => {"allOf" => [item_ref], "description" => "the featured item"},
           "other"    => {"$ref" => "#/components/schemas/OtherEnum"},
           "lookup"   => {"type" => "object", "additionalProperties" => item_ref},
@@ -230,11 +230,12 @@ describe JSON::Schema do
 
     it "builds the definitions of types with their own json_schema from it" do
       refs = JSON::Schema::Definitions.new
-      RefHolder.json_schema(refs: refs).should eq({
+      RefHolder.json_schema(true, refs).should eq({
         type:       "object",
         properties: {
-          custom: JSON.parse({"$ref" => "#/$defs/RefCustom"}.to_json),
-          child:  JSON.parse({"$ref" => "#/$defs/RefCustomChild"}.to_json),
+          custom:   JSON.parse({"$ref" => "#/$defs/RefCustom"}.to_json),
+          child:    JSON.parse({"$ref" => "#/$defs/RefCustomChild"}.to_json),
+          optional: JSON.parse({"allOf" => [{"$ref" => "#/$defs/RefCustom"}], "type" => "string", "nullable" => true}.to_json),
         },
         required: ["custom", "child"],
       })
