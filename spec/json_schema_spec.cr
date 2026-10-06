@@ -228,6 +228,22 @@ describe JSON::Schema do
       end
     end
 
+    it "builds the definitions of types with their own json_schema from it" do
+      refs = JSON::Schema::Definitions.new
+      RefHolder.json_schema(refs: refs).should eq({
+        type:       "object",
+        properties: {
+          custom: JSON.parse({"$ref" => "#/$defs/RefCustom"}.to_json),
+          child:  JSON.parse({"$ref" => "#/$defs/RefCustomChild"}.to_json),
+        },
+        required: ["custom", "child"],
+      })
+      refs.resolve.should eq JSON.parse({
+        "RefCustom"      => {"type" => "string", "description" => "a custom schema"},
+        "RefCustomChild" => {"type" => "integer"},
+      }.to_json).as_h
+    end
+
     it "inlines when no definitions are provided" do
       RefPage(RefItem).json_schema.should eq({
         type:       "object",

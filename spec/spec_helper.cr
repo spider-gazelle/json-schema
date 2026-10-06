@@ -98,3 +98,29 @@ class RefTree
   getter children : Array(RefTree)
   getter parent : RefTree?
 end
+
+struct RefCustom
+  include JSON::Serializable
+  getter value : String
+
+  def self.json_schema(openapi : Bool? = nil)
+    {type: "string", description: "a custom schema"}
+  end
+end
+
+abstract struct RefCustomBase
+  include JSON::Serializable
+
+  def self.json_schema(openapi : Bool? = nil)
+    {type: "integer"}
+  end
+end
+
+struct RefCustomChild < RefCustomBase
+end
+
+struct RefHolder
+  include JSON::Serializable
+  getter custom : RefCustom
+  getter child : RefCustomChild
+end

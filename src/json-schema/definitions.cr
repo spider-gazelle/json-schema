@@ -49,7 +49,7 @@ module JSON::Schema
         @names[type_name] = name
         @type_names[name] = type_name
         # built lazily so self referencing types don't recurse
-        @pending << {name, -> { JSON.parse(T.json_schema(openapi, self).to_json) }}
+        @pending << {name, -> { JSON.parse(definition(T, openapi).to_json) }}
       end
 
       ref = JSON::Any.new({"$ref" => JSON::Any.new("#{prefix}#{name}")})
@@ -59,6 +59,15 @@ module JSON::Schema
       wrapped["nullable"] = JSON::Any.new(true) if nullable
       wrapped["description"] = JSON::Any.new(description) if description
       JSON::Any.new(wrapped)
+    end
+
+    private def definition(klass : T.class, openapi : Bool?) forall T
+      {% if ([T] + T.ancestors).any?(&.class.methods.any? { |method| method.name.stringify == "json_schema" && method.args.size == 1 }) %}
+        # a type that describes itself, `self.json_schema(openapi)`
+        T.json_schema(openapi)
+      {% else %}
+        T.json_schema(openapi, self)
+      {% end %}
     end
 
     # builds the definitions of all the referenced types, returning `schemas`
