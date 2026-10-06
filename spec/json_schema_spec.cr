@@ -146,4 +146,97 @@ describe JSON::Schema do
       required: ["@odata.context", "@odata.count", "hash"],
     })
   end
+
+  describe JSON::Schema::Definitions do
+    item_ref = {"$ref" => "#/components/schemas/RefItem"}
+    item = {
+      "type"       => "object",
+      "properties" => {
+        "content" => {"type" => "string"},
+        "kind"    => {"$ref" => "#/components/schemas/TestEnum"},
+      },
+      "required" => ["content", "kind"],
+    }
+
+    it "references nested serializable types and enums" do
+      refs = JSON::Schema::Definitions.new("#/components/schemas/")
+      schema = JSON.parse(RefList.json_schema(true, refs).to_json)
+      schema.should eq JSON.parse({
+        "type"       => "object",
+        "properties" => {
+          "items"    => {"type" => "array", "items" => item_ref},
+          "primary"  => {"allOf" => [item_ref], "nullable" => true},
+          "featured" => {"allOf" => [item_ref], "description" => "the featured item"},
+          "other"    => {"$ref" => "#/components/schemas/OtherEnum"},
+          "lookup"   => {"type" => "object", "additionalProperties" => item_ref},
+        },
+        "required" => ["items", "featured", "other", "lookup"],
+      }.to_json)
+
+      refs.resolve.should eq JSON.parse({
+        "RefItem"   => item,
+        "OtherEnum" => {"type" => "string", "enum" => ["option1", "option2"]},
+        "TestEnum"  => {"type" => "string", "enum" => ["option1", "option2"]},
+      }.to_json).as_h
+      refs.type_name("RefItem").should eq "RefItem"
+      refs.name_for("OtherEnum").should eq "OtherEnum"
+    end
+
+    it "uses anyOf for nilable references outside of OpenAPI" do
+      refs = JSON::Schema::Definitions.new
+      schema = JSON.parse(RefList.json_schema(refs: refs).to_json)
+      schema["properties"]["primary"].should eq JSON.parse({"anyOf" => [{"$ref" => "#/$defs/RefItem"}, {"type" => "null"}]}.to_json)
+    end
+
+    it "references the type arguments of generics" do
+      refs = JSON::Schema::Definitions.new("#/components/schemas/")
+      schema = ::JSON::Schema.introspect(RefPage(RefList), openapi: true, refs: refs)
+      refs.reference?(schema).should be_true
+      schema.should eq JSON.parse({"$ref" => "#/components/schemas/RefPage_RefList_"}.to_json)
+
+      definitions = refs.resolve
+      definitions.keys.sort!.should eq ["OtherEnum", "RefItem", "RefList", "RefPage_RefList_", "TestEnum"]
+      definitions["RefPage_RefList_"]["properties"]["page"].should eq JSON.parse({"type" => "array", "items" => {"$ref" => "#/components/schemas/RefList"}}.to_json)
+      refs.type_name("RefPage_RefList_").should eq "RefPage(RefList)"
+    end
+
+    it "supports self referencing types" do
+      refs = JSON::Schema::Definitions.new
+      tree_ref = {"$ref" => "#/$defs/RefTree"}
+      ::JSON::Schema.introspect(Array(RefTree), refs: refs).should eq({type: "array", items: JSON.parse(tree_ref.to_json)})
+      refs.resolve.should eq({"RefTree" => JSON.parse({
+        "type"       => "object",
+        "properties" => {
+          "name"     => {"type" => "string"},
+          "children" => {"type" => "array", "items" => tree_ref},
+          "parent"   => {"anyOf" => [{"type" => "null"}, tree_ref]},
+        },
+        "required" => ["name", "children"],
+      }.to_json)})
+    end
+
+    it "builds a definition once per type" do
+      refs = JSON::Schema::Definitions.new
+      ::JSON::Schema.introspect(Tuple(RefItem, RefItem?, Array(RefItem)), refs: refs)
+      refs.resolve.keys.sort!.should eq ["RefItem", "TestEnum"]
+    end
+
+    it "raises when two types share a definition name" do
+      refs = JSON::Schema::Definitions.new { "Same" }
+      expect_raises(ArgumentError, "JSON schema definition name 'Same' is used by both RefItem and OtherEnum") do
+        RefList.json_schema(refs: refs)
+      end
+    end
+
+    it "inlines when no definitions are provided" do
+      RefPage(RefItem).json_schema.should eq({
+        type:       "object",
+        properties: {
+          page:  {type: "array", items: {type: "object", properties: {content: {type: "string"}, kind: {type: "string", enum: ["option1", "option2"]}}, required: ["content", "kind"]}},
+          total: {type: "integer", format: "Int32"},
+        },
+        required: ["page", "total"],
+      })
+    end
+  end
 end

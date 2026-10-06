@@ -1,10 +1,14 @@
 require "json"
 require "uuid"
+require "./json-schema/definitions"
 
 module JSON
   module Schema
-    def json_schema(openapi : Bool? = nil)
+    # pass a `JSON::Schema::Definitions` as `refs` to have nested JSON::Serializable
+    # types and enums emitted as `$ref`s, with their definitions collected in `refs`
+    def json_schema(openapi : Bool? = nil, refs : R = nil) forall R
       {% begin %}
+        {% refs = R == Nil ? nil : "refs".id %}
         {% properties = {} of Nil => Nil %}
         {% for ivar in @type.instance_vars %}
           {% ann = ivar.annotation(::JSON::Field) %}
@@ -32,7 +36,7 @@ module JSON
                   {% end %}
                 ]},
               {% else %}
-                {{key}}: openapi ? ::JSON::Schema.introspect({{ivar.name}}, {{args}}, true) : ::JSON::Schema.introspect({{ivar.name}}, {{args}}),
+                {{key}}: openapi ? ::JSON::Schema.introspect({{ivar.name}}, {{args}}, true, {{refs}}) : ::JSON::Schema.introspect({{ivar.name}}, {{args}}, nil, {{refs}}),
               {% end %}
             {% end %}
           },
@@ -53,7 +57,8 @@ module JSON
       {% end %}
     end
 
-    macro introspect(klass, args = nil, openapi = nil)
+    # `refs`, when provided, is an expression that evaluates to a `JSON::Schema::Definitions`
+    macro introspect(klass, args = nil, openapi = nil, refs = nil)
       {% format_hint = (args && args[:format]) %}
       {% type_override = (args && args[:type]) %}
       {% pattern = (args && args[:pattern]) %}
@@ -61,15 +66,16 @@ module JSON
 
       {% arg_name = klass.stringify %}
       {% if !arg_name.starts_with?("Union") && arg_name.includes?("|") %}
-        ::JSON::Schema.introspect(Union({{klass}}), {{args}}, {{openapi}})
+        ::JSON::Schema.introspect(Union({{klass}}), {{args}}, {{openapi}}, {{refs}})
       {% else %}
         {% klass = klass.resolve %}
         {% klass_name = klass.name(generic_args: false) %}
         {% nillable = klass.nilable? %}
+        {% referenced = refs && (klass < Enum || klass.ancestors.includes?(JSON::Serializable)) %}
 
         {% if klass <= Array || klass <= Set %}
           {% if klass.type_vars.size == 1 %}
-            %has_items = ::JSON::Schema.introspect({{klass.type_vars[0]}}, nil, {{openapi}})
+            %has_items = ::JSON::Schema.introspect({{klass.type_vars[0]}}, nil, {{openapi}}, {{refs}})
             {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items}
           {% else %}
             # handle inheritance (no access to type_var / unknown value)
@@ -79,21 +85,25 @@ module JSON
         {% elsif klass.union? && !openapi.nil? && nillable && klass.union_types.size == 2 %}
           {% for type in klass.union_types %}
             {% if type.stringify != "Nil" %}
-              JSON.parse(::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}).to_json[0..-2] + %(,"nullable":true}))
+              {% if refs && (type < Enum || type.ancestors.includes?(JSON::Serializable)) %}
+                {{refs}}.reference({{type}}, {{openapi}}, nullable: true, description: {{description}})
+              {% else %}
+                JSON.parse(::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}, {{refs}}).to_json[0..-2] + %(,"nullable":true}))
+              {% end %}
             {% end %}
           {% end %}
         {% elsif klass.union? %}
           { anyOf: {
             {% for type in klass.union_types %}
               {% if openapi.nil? || type.stringify != "Nil" %}
-                ::JSON::Schema.introspect({{type}}, nil, {{openapi}}),
+                ::JSON::Schema.introspect({{type}}, nil, {{openapi}}, {{refs}}),
               {% end %}
             {% end %}
           }{% if !openapi.nil? && nillable %}, nullable: true{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass_name.starts_with? "Tuple(" %}
           %has_items = {
             {% for generic in klass.type_vars %}
-              ::JSON::Schema.introspect({{generic}}, nil, {{openapi}}),
+              ::JSON::Schema.introspect({{generic}}, nil, {{openapi}}, {{refs}}),
             {% end %}
           }
           {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items}
@@ -103,7 +113,7 @@ module JSON
           {% else %}
             {type: "object"{% if description %}, description: {{description}}{% end %},  properties: {
               {% for key in klass.keys %}
-                {{key.id}}: ::JSON::Schema.introspect({{klass[key].resolve.name}}, nil, {{openapi}}),
+                {{key.id}}: ::JSON::Schema.introspect({{klass[key].resolve.name}}, nil, {{openapi}}, {{refs}}),
               {% end %}
             },
               {% required = [] of String %}
@@ -119,6 +129,8 @@ module JSON
               ] of String
             }
           {% end %}
+        {% elsif referenced %}
+          {{refs}}.reference({{klass}}, {{openapi}}, description: {{description}})
         {% elsif klass < Enum %}
           {type: "string",  enum: {{klass.constants.map(&.stringify.underscore)}}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= String || klass <= Symbol %}
@@ -146,7 +158,7 @@ module JSON
           { type: {{type_override || "string"}}, format: {{format_hint || "uuid"}}{% if pattern %}, pattern: {{pattern}}{% end %}{% if description %}, description: {{description}}{% end %} }
         {% elsif klass <= Hash %}
           {% if klass.type_vars.size == 2 %}
-            { type: "object"{% if description %}, description: {{description}}{% end %}, additionalProperties: ::JSON::Schema.introspect({{klass.type_vars[1]}}, nil, {{openapi}}) }
+            { type: "object"{% if description %}, description: {{description}}{% end %}, additionalProperties: ::JSON::Schema.introspect({{klass.type_vars[1]}}, nil, {{openapi}}, {{refs}}) }
           {% else %}
             # As inheritance might include the type_vars it's hard to work them out
             %klass = {{klass.ancestors[0]}}
@@ -184,9 +196,10 @@ end
   {% structs = {Nil, Bool, Int, Float, Symbol, Set, Tuple, NamedTuple, Enum, Time, UUID} %}
   {% for klass in structs %}
     struct ::{{klass}}
-      def self.json_schema(openapi : Bool? = nil)
+      def self.json_schema(openapi : Bool? = nil, refs : R = nil) forall R
         \{% begin %}
-          openapi ? ::JSON::Schema.introspect(\{{@type}}, openapi: true) : ::JSON::Schema.introspect(\{{@type}})
+          \{% refs = R == Nil || @type < ::Enum ? nil : "refs".id %}
+          openapi ? ::JSON::Schema.introspect(\{{@type}}, nil, true, \{{refs}}) : ::JSON::Schema.introspect(\{{@type}}, nil, nil, \{{refs}})
         \{% end %}
       end
     end
@@ -195,9 +208,10 @@ end
   {% klasses = {Array, String, Hash} %}
   {% for klass in klasses %}
     class ::{{klass}}
-      def self.json_schema(openapi : Bool? = nil)
+      def self.json_schema(openapi : Bool? = nil, refs : R = nil) forall R
         \{% begin %}
-        openapi ? ::JSON::Schema.introspect(\{{@type}}, openapi: true) : ::JSON::Schema.introspect(\{{@type}})
+        \{% refs = R == Nil ? nil : "refs".id %}
+        openapi ? ::JSON::Schema.introspect(\{{@type}}, nil, true, \{{refs}}) : ::JSON::Schema.introspect(\{{@type}}, nil, nil, \{{refs}})
         \{% end %}
       end
     end

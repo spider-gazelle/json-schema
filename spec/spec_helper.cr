@@ -64,3 +64,37 @@ class Example4
   @[JSON::Field(description: "Mapping of category names to option lists")]
   getter categories : Hash(String, Array(String))
 end
+
+enum OtherEnum
+  Option1
+  Option2
+end
+
+struct RefItem
+  include JSON::Serializable
+  getter content : String
+  getter kind : TestEnum
+end
+
+struct RefList
+  include JSON::Serializable
+  getter items : Array(RefItem)
+  getter primary : RefItem?
+  @[JSON::Field(description: "the featured item")]
+  getter featured : RefItem
+  getter other : OtherEnum
+  getter lookup : Hash(String, RefItem)
+end
+
+struct RefPage(T)
+  include JSON::Serializable
+  getter page : Array(T)
+  getter total : Int32
+end
+
+class RefTree
+  include JSON::Serializable
+  getter name : String
+  getter children : Array(RefTree)
+  getter parent : RefTree?
+end

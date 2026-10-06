@@ -93,3 +93,32 @@ end
 ```
 
 for anything too confusing it falls back to a generic `{ type: "object" }` however this should only happen in some cases where you've inherited generic objects. e.g. `class Me < Hash(String, Int32)` (although this case is handled correctly)
+
+### Referencing nested types
+
+By default nested types are expanded inline wherever they appear. Pass a `JSON::Schema::Definitions` as `refs` and nested `JSON::Serializable` types and enums are emitted as `$ref`s instead, with each definition built once and collected for you. Self referencing types are supported in this mode.
+
+```crystal
+struct Item
+  include JSON::Serializable
+  getter content : String
+end
+
+struct List
+  include JSON::Serializable
+  getter items : Array(Item)
+  getter primary : Item?
+end
+
+refs = JSON::Schema::Definitions.new # $ref prefix defaults to "#/$defs/"
+List.json_schema(refs: refs)
+# {type: "object", properties: {items: {type: "array", items: {"$ref": "#/$defs/Item"}}, primary: {anyOf: [{"$ref": "#/$defs/Item"}, {type: "null"}]}}, required: ["items"]}
+
+refs.resolve # => {"Item" => {type: "object", properties: {content: {type: "string"}}, required: ["content"]}}
+
+# for an OpenAPI document
+refs = JSON::Schema::Definitions.new("#/components/schemas/")
+JSON::Schema.introspect(Array(List), openapi: true, refs: refs)
+```
+
+Types are named by type rather than by shape, so two enums with the same members are kept as separate definitions. A block passed to `Definitions.new` customises how type names become definition names. Siblings of a `$ref` (`nullable`, `description`) are ignored by OpenAPI 3.0, so in those cases the reference is wrapped in an `allOf`.
