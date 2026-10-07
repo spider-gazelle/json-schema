@@ -58,9 +58,9 @@ module JSON::Schema
 
     # registers the type, returning a reference to its definition
     #
-    # `nullable` and `description` are siblings of the `$ref`, which OpenAPI 3.0 ignores,
-    # so the reference is wrapped in an `allOf` when they are provided. OpenAPI 3.0.3 only
-    # applies `nullable` alongside a `type`, so the type of the definition is included
+    # A description sits beside the `$ref` in JSON Schema 2020-12. OpenAPI 3.0 ignores
+    # siblings of a `$ref`, so there the reference is wrapped in an `allOf` along with
+    # `nullable` and the type of the definition (3.0.3 only applies `nullable` with a `type`)
     def reference(klass : T.class, openapi : Bool? = nil, nullable : Bool = false, description : String? = nil) : JSON::Any forall T
       type_name = T.to_s
       unless name = @names[type_name]?
@@ -76,6 +76,9 @@ module JSON::Schema
 
       ref = JSON::Any.new({"$ref" => JSON::Any.new("#{prefix}#{name}")})
       return ref unless nullable || description
+      if description && !openapi && !nullable
+        return JSON::Any.new({"$ref" => ref["$ref"], "description" => JSON::Any.new(description)})
+      end
 
       wrapped = {"allOf" => JSON::Any.new([ref])}
       if nullable

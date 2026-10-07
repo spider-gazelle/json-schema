@@ -110,7 +110,7 @@ module JSON
                 ::JSON::Schema.introspect({{generic}}, nil, {{openapi}}, {{refs}}),
               {% end %}
             }
-            {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items}
+            {type: "array"{% if description %}, description: {{description}}{% end %}, prefixItems: %has_items, minItems: {{klass.type_vars.size}}, maxItems: {{klass.type_vars.size}}}
           {% else %}
             # OpenAPI 3.0 doesn't support positional items, any of the member types is allowed
             %has_items = ::JSON::Schema.introspect(Union({{klass.type_vars.splat}}), nil, {{openapi}}, {{refs}})
@@ -148,6 +148,15 @@ module JSON
           {% exclusive_minimum = (args && args[:exclusive_minimum]) %}
           {% maximum = (args && args[:maximum]) %}
           {% exclusive_maximum = (args && args[:exclusive_maximum]) %}
+          # OpenAPI 3.0 exclusive bounds are booleans that apply to minimum / maximum
+          {% if !openapi.nil? && exclusive_minimum %}
+            {% minimum = exclusive_minimum %}
+            {% exclusive_minimum = true %}
+          {% end %}
+          {% if !openapi.nil? && exclusive_maximum %}
+            {% maximum = exclusive_maximum %}
+            {% exclusive_maximum = true %}
+          {% end %}
           {% if klass <= Int %}
             { type: {{type_override || "integer"}}, format: {{format_hint || klass.stringify}}{% if multiple_of %}, multipleOf: {{multiple_of}}{% end %}{% if minimum %}, minimum: {{minimum}}{% end %}{% if exclusive_minimum %}, exclusiveMinimum: {{exclusive_minimum}}{% end %}{% if maximum %}, maximum: {{maximum}}{% end %}{% if exclusive_maximum %}, exclusiveMaximum: {{exclusive_maximum}}{% end %}{% if description %}, description: {{description}}{% end %} }
           {% elsif klass <= Float %}

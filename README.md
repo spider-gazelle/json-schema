@@ -2,6 +2,8 @@
 
 A crystal lang tool for converting JSON serialisable class definitions into the [JSON Schema](https://json-schema.org/) representation.
 
+Output targets JSON Schema 2020-12 (the dialect of OpenAPI 3.1 and MCP). Pass `openapi: true` (e.g. `MyType.json_schema(true)`) for the OpenAPI 3.0 dialect: `nullable` rather than a `null` type, tuples as a single `items` schema and boolean exclusive bounds.
+
 ## Installation
 
 ```yaml

@@ -162,3 +162,9 @@ struct OptionalUnionHolder
   @[JSON::Field(description: "a ref, a string or nothing")]
   getter value : RefItem | String | Nil
 end
+
+struct Bounded
+  include JSON::Serializable
+  @[JSON::Field(exclusive_minimum: 0, exclusive_maximum: 10)]
+  getter value : Int32
+end
