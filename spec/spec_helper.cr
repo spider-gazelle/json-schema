@@ -150,3 +150,15 @@ struct RefAmbiguous
   getter one : RefTagged(RefA::RefB, RefC)
   getter two : RefTagged(RefA, RefB::RefC)
 end
+
+struct AllOptional
+  include JSON::Serializable
+  getter name : String?
+  getter count : Int32?
+end
+
+struct OptionalUnionHolder
+  include JSON::Serializable
+  @[JSON::Field(description: "a ref, a string or nothing")]
+  getter value : RefItem | String | Nil
+end

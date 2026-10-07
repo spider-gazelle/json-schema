@@ -85,7 +85,13 @@ describe JSON::Schema do
 
   it "works with OpenAPI modifications" do
     ::JSON::Schema.introspect(Int32?, openapi: true).should eq({"type" => "integer", "format" => "Int32", "nullable" => true})
-    ::JSON::Schema.introspect((String | Int32?), openapi: true).should eq({anyOf: { {type: "integer", format: "Int32"}, {type: "string"} }, nullable: true})
+    # OpenAPI 3.0 only applies nullable alongside a type, so each member is nullable
+    JSON.parse(::JSON::Schema.introspect((String | Int32?), openapi: true).to_json).should eq JSON.parse({
+      "anyOf" => [
+        {"type" => "integer", "format" => "Int32", "nullable" => true},
+        {"type" => "string", "nullable" => true},
+      ],
+    }.to_json)
     ::JSON::Schema.introspect(Example1?, openapi: true).should eq({
       "type"       => "object",
       "properties" => {
@@ -270,6 +276,41 @@ describe JSON::Schema do
         },
         required: ["page", "total"],
       })
+    end
+  end
+
+  describe "OpenAPI validity" do
+    it "leaves out required when every property is optional" do
+      AllOptional.json_schema.should eq({type: "object", properties: {name: {anyOf: { {type: "null"}, {type: "string"} }}, count: {anyOf: { {type: "integer", format: "Int32"}, {type: "null"} }}}})
+      ::JSON::Schema.introspect(NamedTuple(a: String?), openapi: true).should eq({type: "object", properties: {a: {"type" => "string", "nullable" => true}}})
+    end
+
+    it "describes tuples with a single items schema in OpenAPI" do
+      JSON.parse(::JSON::Schema.introspect(Tuple(String, Int32, String), openapi: true).to_json).should eq JSON.parse({
+        "type"     => "array",
+        "items"    => {"anyOf" => [{"type" => "integer", "format" => "Int32"}, {"type" => "string"}]},
+        "minItems" => 3,
+        "maxItems" => 3,
+      }.to_json)
+      JSON.parse(::JSON::Schema.introspect(Tuple(Float64, Float64), openapi: true).to_json).should eq JSON.parse({
+        "type"     => "array",
+        "items"    => {"type" => "number", "format" => "Float64"},
+        "minItems" => 2,
+        "maxItems" => 2,
+      }.to_json)
+      # JSON Schema keeps the positional form
+      Tuple(String, Int32).json_schema.should eq({type: "array", items: { {type: "string"}, {type: "integer", format: "Int32"} }})
+    end
+
+    it "makes each member of a nilable union nullable in OpenAPI" do
+      refs = JSON::Schema::Definitions.new("#/components/schemas/")
+      JSON.parse(OptionalUnionHolder.json_schema(true, refs).to_json)["properties"]["value"].should eq JSON.parse({
+        "anyOf" => [
+          {"allOf" => [{"$ref" => "#/components/schemas/RefItem"}], "type" => "object", "nullable" => true},
+          {"type" => "string", "nullable" => true},
+        ],
+        "description" => "a ref, a string or nothing",
+      }.to_json)
     end
   end
 end

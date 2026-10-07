@@ -17,6 +17,14 @@ module JSON
           {% end %}
         {% end %}
 
+        # OpenAPI requires at least one entry, so `required` is left out when it's empty
+        {% required = [] of String %}
+        {% for key, details in properties %}
+          {% unless details[0].nilable? %}
+            {% required << key.stringify %}
+          {% end %}
+        {% end %}
+
         {% if properties.empty? %}
           { type: "object" }
         {% else %}
@@ -39,19 +47,11 @@ module JSON
                 {{key}}: openapi ? ::JSON::Schema.introspect({{ivar.name}}, {{args}}, true, {{refs}}) : ::JSON::Schema.introspect({{ivar.name}}, {{args}}, nil, {{refs}}),
               {% end %}
             {% end %}
-          },
-            {% required = [] of String %}
-            {% for key, details in properties %}
-              {% ivar = details[0] %}
-              {% unless ivar.nilable? %}
-                {% required << key.stringify %}
-              {% end %}
-            {% end %}
-            required: [
+          }{% unless required.empty? %}, required: [
               {% for key in required %}
                 {{key}},
               {% end %}
-            ] of String
+            ] of String{% end %}
           }
         {% end %}
       {% end %}
@@ -93,40 +93,43 @@ module JSON
             {% end %}
           {% end %}
         {% elsif klass.union? %}
+          # OpenAPI 3.0 only applies nullable alongside a type, so each member is made nullable
           { anyOf: {
             {% for type in klass.union_types %}
-              {% if openapi.nil? || type.stringify != "Nil" %}
+              {% if openapi.nil? %}
                 ::JSON::Schema.introspect({{type}}, nil, {{openapi}}, {{refs}}),
+              {% elsif type.stringify != "Nil" %}
+                ::JSON::Schema.introspect({{ nillable ? "Union(#{type}, Nil)".id : type }}, nil, {{openapi}}, {{refs}}),
               {% end %}
             {% end %}
-          }{% if !openapi.nil? && nillable %}, nullable: true{% end %}{% if description %}, description: {{description}}{% end %} }
+          }{% if description %}, description: {{description}}{% end %} }
         {% elsif klass_name.starts_with? "Tuple(" %}
-          %has_items = {
-            {% for generic in klass.type_vars %}
-              ::JSON::Schema.introspect({{generic}}, nil, {{openapi}}, {{refs}}),
-            {% end %}
-          }
-          {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items}
+          {% if openapi.nil? %}
+            %has_items = {
+              {% for generic in klass.type_vars %}
+                ::JSON::Schema.introspect({{generic}}, nil, {{openapi}}, {{refs}}),
+              {% end %}
+            }
+            {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items}
+          {% else %}
+            # OpenAPI 3.0 doesn't support positional items, any of the member types is allowed
+            %has_items = ::JSON::Schema.introspect(Union({{klass.type_vars.splat}}), nil, {{openapi}}, {{refs}})
+            {type: "array"{% if description %}, description: {{description}}{% end %}, items: %has_items, minItems: {{klass.type_vars.size}}, maxItems: {{klass.type_vars.size}}}
+          {% end %}
         {% elsif klass_name.starts_with? "NamedTuple(" %}
           {% if klass.keys.empty? %}
             {type: "object"{% if description %}, description: {{description}}{% end %},  properties: {} of Symbol => Nil}
           {% else %}
+            {% required = klass.keys.reject { |key| klass[key].resolve.nilable? }.map(&.id.stringify) %}
             {type: "object"{% if description %}, description: {{description}}{% end %},  properties: {
               {% for key in klass.keys %}
                 {{key.id}}: ::JSON::Schema.introspect({{klass[key].resolve.name}}, nil, {{openapi}}, {{refs}}),
               {% end %}
-            },
-              {% required = [] of String %}
-              {% for key in klass.keys %}
-                {% if !klass[key].resolve.nilable? %}
-                  {% required << key.id.stringify %}
-                {% end %}
-              {% end %}
-              required: [
+            }{% unless required.empty? %}, required: [
                 {% for key in required %}
                   {{key}},
                 {% end %}
-              ] of String
+              ] of String{% end %}
             }
           {% end %}
         {% elsif referenced %}
