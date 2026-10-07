@@ -93,3 +93,32 @@ end
 ```
 
 for anything too confusing it falls back to a generic `{ type: "object" }` however this should only happen in some cases where you've inherited generic objects. e.g. `class Me < Hash(String, Int32)` (although this case is handled correctly)
+
+### Referencing nested types
+
+By default nested types are expanded inline wherever they appear. Pass a `JSON::Schema::Definitions` as `refs` and nested `JSON::Serializable` types and enums are emitted as `$ref`s instead, with each definition built once and collected for you. Self referencing types are supported in this mode.
+
+```crystal
+struct Item
+  include JSON::Serializable
+  getter content : String
+end
+
+struct List
+  include JSON::Serializable
+  getter items : Array(Item)
+  getter primary : Item?
+end
+
+refs = JSON::Schema::Definitions.new # $ref prefix defaults to "#/$defs/"
+List.json_schema(refs: refs)
+# {type: "object", properties: {items: {type: "array", items: {"$ref": "#/$defs/Item"}}, primary: {anyOf: [{"$ref": "#/$defs/Item"}, {type: "null"}]}}, required: ["items"]}
+
+refs.resolve # => {"Item" => {type: "object", properties: {content: {type: "string"}}, required: ["content"]}}
+
+# for an OpenAPI document
+refs = JSON::Schema::Definitions.new("#/components/schemas/")
+JSON::Schema.introspect(Array(List), openapi: true, refs: refs)
+```
+
+Types are named by type rather than by shape, so two enums with the same members are kept as separate definitions. A type that describes itself with `def self.json_schema(openapi : Bool? = nil)` is still referenced, and its definition comes from that method. Definition names only use the characters OpenAPI allows in component names, and the conversion is reversible, so two types can never share a name: `::` becomes `.`, generic and union separators become short escapes (`Page(Api::User)` is `Page-oApi.User-c`), see `JSON::Schema::Definitions.normalise`. A block passed to `Definitions.new` customises the naming, an error is raised if it gives two types the same name. Siblings of a `$ref` (`nullable`, `description`) are ignored by OpenAPI 3.0, so in those cases the reference is wrapped in an `allOf` (with the definition's `type`, which OpenAPI 3.0.3 requires alongside `nullable`).

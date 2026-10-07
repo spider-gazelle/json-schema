@@ -64,3 +64,89 @@ class Example4
   @[JSON::Field(description: "Mapping of category names to option lists")]
   getter categories : Hash(String, Array(String))
 end
+
+enum OtherEnum
+  Option1
+  Option2
+end
+
+struct RefItem
+  include JSON::Serializable
+  getter content : String
+  getter kind : TestEnum
+end
+
+struct RefList
+  include JSON::Serializable
+  getter items : Array(RefItem)
+  getter primary : RefItem?
+  @[JSON::Field(description: "the featured item")]
+  getter featured : RefItem
+  getter other : OtherEnum
+  getter lookup : Hash(String, RefItem)
+end
+
+struct RefPage(T)
+  include JSON::Serializable
+  getter page : Array(T)
+  getter total : Int32
+end
+
+class RefTree
+  include JSON::Serializable
+  getter name : String
+  getter children : Array(RefTree)
+  getter parent : RefTree?
+end
+
+struct RefCustom
+  include JSON::Serializable
+  getter value : String
+
+  def self.json_schema(openapi : Bool? = nil)
+    {type: "string", description: "a custom schema"}
+  end
+end
+
+abstract struct RefCustomBase
+  include JSON::Serializable
+
+  def self.json_schema(openapi : Bool? = nil)
+    {type: "integer"}
+  end
+end
+
+struct RefCustomChild < RefCustomBase
+end
+
+struct RefHolder
+  include JSON::Serializable
+  getter custom : RefCustom
+  getter child : RefCustomChild
+  getter optional : RefCustom?
+end
+
+# only the type names matter, `RefTagged(RefA::RefB, RefC)` vs `RefTagged(RefA, RefB::RefC)`
+module RefA
+  module RefB
+  end
+end
+
+module RefB
+  module RefC
+  end
+end
+
+module RefC
+end
+
+struct RefTagged(T, U)
+  include JSON::Serializable
+  getter value : Int32
+end
+
+struct RefAmbiguous
+  include JSON::Serializable
+  getter one : RefTagged(RefA::RefB, RefC)
+  getter two : RefTagged(RefA, RefB::RefC)
+end
