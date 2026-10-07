@@ -75,7 +75,7 @@ describe JSON::Schema do
           required: ["options", "string", "symbol", "time", "integer", "bool", "hash"],
         },
         array:       {type: "array", items: {anyOf: { {type: "integer", format: "Int32"}, {type: "string"} }}},
-        tuple:       {type: "array", prefixItems: { {type: "string"}, {type: "integer", format: "Int32"}, {type: "number", format: "Float64"} }, minItems: 3, maxItems: 3},
+        tuple:       {type: "array", prefixItems: { {type: "string"}, {type: "integer", format: "Int32"}, {type: "number", format: "Float64"} }, items: false, minItems: 3, maxItems: 3},
         named_tuple: {type: "object", properties: {test: {type: "string"}, other: {type: "integer", format: "Int64"}}, required: ["test", "other"]},
         union_type:  {anyOf: { {type: "boolean"}, {type: "integer", format: "Int64"}, {type: "string"} }, description: "a string an int or a bool"},
       },
@@ -299,7 +299,7 @@ describe JSON::Schema do
         "maxItems" => 2,
       }.to_json)
       # JSON Schema 2020-12 is positional
-      Tuple(String, Int32).json_schema.should eq({type: "array", prefixItems: { {type: "string"}, {type: "integer", format: "Int32"} }, minItems: 2, maxItems: 2})
+      Tuple(String, Int32).json_schema.should eq({type: "array", prefixItems: { {type: "string"}, {type: "integer", format: "Int32"} }, items: false, minItems: 2, maxItems: 2})
     end
 
     it "makes each member of a nilable union nullable in OpenAPI" do

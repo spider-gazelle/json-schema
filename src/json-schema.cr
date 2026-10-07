@@ -110,7 +110,7 @@ module JSON
                 ::JSON::Schema.introspect({{generic}}, nil, {{openapi}}, {{refs}}),
               {% end %}
             }
-            {type: "array"{% if description %}, description: {{description}}{% end %}, prefixItems: %has_items, minItems: {{klass.type_vars.size}}, maxItems: {{klass.type_vars.size}}}
+            {type: "array"{% if description %}, description: {{description}}{% end %}, prefixItems: %has_items, items: false, minItems: {{klass.type_vars.size}}, maxItems: {{klass.type_vars.size}}}
           {% else %}
             # OpenAPI 3.0 doesn't support positional items, any of the member types is allowed
             %has_items = ::JSON::Schema.introspect(Union({{klass.type_vars.splat}}), nil, {{openapi}}, {{refs}})
