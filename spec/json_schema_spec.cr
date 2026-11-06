@@ -329,3 +329,26 @@ describe JSON::Schema do
     end
   end
 end
+
+# a namespace with a JSON module of its own, as the AWS SDK has
+module Elsewhere
+  module JSON
+  end
+
+  struct Thing
+    include ::JSON::Serializable
+
+    getter name : String
+  end
+end
+
+describe "JSON::Any and namespaced serializables" do
+  it "describes JSON::Any as any value" do
+    Array(JSON::Any).json_schema.should eq({type: "array", items: NamedTuple.new})
+    Hash(String, JSON::Any).json_schema.should eq({type: "object", additionalProperties: NamedTuple.new})
+  end
+
+  it "extends a serializable declared where JSON names another module" do
+    Elsewhere::Thing.json_schema.should eq({type: "object", properties: {name: {type: "string"}}, required: ["name"]})
+  end
+end
