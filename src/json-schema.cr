@@ -188,8 +188,8 @@ module JSON
           if %klass.responds_to?(:json_schema)
             %klass.json_schema({{openapi}})
           else
-            # anything will validate (JSON::Any)
-            { type: "object"{% if description %}, description: {{description}}{% end %} }
+            # anything will validate (JSON::Any): the empty schema
+            {% if description %}{description: {{description}}}{% else %}NamedTuple.new{% end %}
           end
         {% end %}
       {% end %}
@@ -198,7 +198,7 @@ module JSON
 
   module Serializable
     macro included
-      extend JSON::Schema
+      extend ::JSON::Schema
     end
   end
 end
