@@ -168,3 +168,12 @@ struct Bounded
   @[JSON::Field(exclusive_minimum: 0, exclusive_maximum: 10)]
   getter value : Int32
 end
+
+struct OptionalTimes
+  include JSON::Serializable
+
+  @[JSON::Field(converter: Time::EpochConverter, type: "integer", format: "Int64", description: "Unix seconds")]
+  getter epoch : Time?
+  @[JSON::Field(description: "An RFC 3339 timestamp")]
+  getter timestamp : Time?
+end

@@ -93,11 +93,13 @@ module JSON
             {% end %}
           {% end %}
         {% elsif klass.union? %}
+          # A nullable field's type and format describe its concrete value.
+          {% value_hints = (type_override || format_hint) && nillable && klass.union_types.size == 2 ? {type: type_override, format: format_hint} : nil %}
           # OpenAPI 3.0 only applies nullable alongside a type, so each member is made nullable
           { anyOf: {
             {% for type in klass.union_types %}
               {% if openapi.nil? %}
-                ::JSON::Schema.introspect({{type}}, nil, {{openapi}}, {{refs}}),
+                ::JSON::Schema.introspect({{ type }}, {{ type == Nil ? nil : value_hints }}, {{ openapi }}, {{ refs }}),
               {% elsif type.stringify != "Nil" %}
                 ::JSON::Schema.introspect({{ nillable ? "Union(#{type}, Nil)".id : type }}, nil, {{openapi}}, {{refs}}),
               {% end %}
