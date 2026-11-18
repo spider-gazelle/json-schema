@@ -1,6 +1,12 @@
 require "spec"
 require "../src/json-schema"
 
+{% if Fiber.has_constant?(:ExecutionContext) %}
+  if ENV.has_key?("CRYSTAL_WORKERS")
+    Fiber::ExecutionContext.default.resize(Fiber::ExecutionContext.default_workers_count)
+  end
+{% end %}
+
 enum TestEnum
   Option1
   Option2
