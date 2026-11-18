@@ -280,6 +280,15 @@ describe JSON::Schema do
   end
 
   describe "OpenAPI validity" do
+    it "keeps schema hints on nullable converted time fields" do
+      OptionalTimes.json_schema(true)[:properties][:epoch].should eq({
+        "type"        => "integer",
+        "format"      => "Int64",
+        "description" => "Unix seconds",
+        "nullable"    => true,
+      })
+    end
+
     it "leaves out required when every property is optional" do
       AllOptional.json_schema.should eq({type: "object", properties: {name: {anyOf: { {type: "null"}, {type: "string"} }}, count: {anyOf: { {type: "integer", format: "Int32"}, {type: "null"} }}}})
       ::JSON::Schema.introspect(NamedTuple(a: String?), openapi: true).should eq({type: "object", properties: {a: {"type" => "string", "nullable" => true}}})
@@ -315,6 +324,22 @@ describe JSON::Schema do
   end
 
   describe "JSON Schema 2020-12" do
+    it "keeps schema hints on the value of nullable converted time fields" do
+      OptionalTimes.json_schema.should eq({
+        type:       "object",
+        properties: {
+          epoch: {
+            anyOf:       { {type: "integer", format: "Int64"}, {type: "null"} },
+            description: "Unix seconds",
+          },
+          timestamp: {
+            anyOf:       { {type: "string", format: "date-time"}, {type: "null"} },
+            description: "An RFC 3339 timestamp",
+          },
+        },
+      })
+    end
+
     it "places a description beside a reference" do
       refs = JSON::Schema::Definitions.new
       JSON.parse(RefList.json_schema(refs: refs).to_json)["properties"]["featured"].should eq JSON.parse({

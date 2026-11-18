@@ -1,6 +1,12 @@
 require "spec"
 require "../src/json-schema"
 
+{% if Fiber.has_constant?(:ExecutionContext) %}
+  if ENV.has_key?("CRYSTAL_WORKERS")
+    Fiber::ExecutionContext.default.resize(Fiber::ExecutionContext.default_workers_count)
+  end
+{% end %}
+
 enum TestEnum
   Option1
   Option2
@@ -167,4 +173,13 @@ struct Bounded
   include JSON::Serializable
   @[JSON::Field(exclusive_minimum: 0, exclusive_maximum: 10)]
   getter value : Int32
+end
+
+struct OptionalTimes
+  include JSON::Serializable
+
+  @[JSON::Field(converter: Time::EpochConverter, type: "integer", format: "Int64", description: "Unix seconds")]
+  getter epoch : Time?
+  @[JSON::Field(description: "An RFC 3339 timestamp")]
+  getter timestamp : Time?
 end
