@@ -36,9 +36,10 @@ jobs:
       - name: Install dependencies
         run: shards install --ignore-crystal-version
       - name: Test ${{ matrix.MT && 'Multithreaded' || '' }}
+        env:
+          CRYSTAL_WORKERS: ${{ matrix.MT && '4' || '1' }}
         run: |
           crystal spec \
           --error-trace \
-          ${{ matrix.MT && '-Dpreview_mt' || '' }} \
           --order random \
           --verbose
