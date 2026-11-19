@@ -153,6 +153,70 @@ describe JSON::Schema do
     })
   end
 
+  it "describes serialized fields without requiring them as input" do
+    refs = JSON::Schema::Definitions.new
+    schema = JSON.parse(DirectionalFields.json_schema(refs: refs).to_json)
+    properties = schema["properties"]
+
+    schema["required"].should eq(["input"])
+    properties.as_h.keys.should eq(["input", "total", "related", "items"])
+    properties["total"].should eq(JSON.parse(%({"type":"integer","format":"Int32","readOnly":true})))
+    properties["related"].should eq(JSON.parse(%({"$ref":"#/$defs/RefItem","readOnly":true})))
+
+    JSON.parse(DirectionalFields.from_json(%({"input":"name","items":["request"]})).to_json)
+      .should eq(JSON.parse(%({"input":"name","total":7,"related":{"content":"item","kind":"option1"},"items":[1,2,3]})))
+  end
+
+  it "keeps both schemas for input and output fields sharing a key" do
+    items = JSON.parse(DirectionalFields.json_schema.to_json)["properties"]["items"]
+    items["readOnly"]?.should be_nil
+    item_types = items["anyOf"].as_a.flat_map do |schema|
+      schema["anyOf"].as_a.compact_map { |variant| variant["items"]?.try(&.[]("type")) }
+    end
+    item_types.should eq(["string", "integer"])
+  end
+
+  it "uses allOf for a read-only reference in OpenAPI 3.0" do
+    refs = JSON::Schema::Definitions.new("#/components/schemas/")
+    related = JSON.parse(DirectionalFields.json_schema(true, refs).to_json)["properties"]["related"]
+    related.should eq(JSON.parse(%({"allOf":[{"$ref":"#/components/schemas/RefItem"}],"readOnly":true})))
+  end
+
+  it "describes JSON::Any as any JSON value and honors explicit serialized types" do
+    Array(JSON::Any).json_schema.should eq({type: "array", items: NamedTuple.new})
+    Hash(String, JSON::Any).json_schema.should eq({type: "object", additionalProperties: NamedTuple.new})
+
+    properties = JSON.parse(SerializedValues.json_schema.to_json)["properties"]
+    properties["value"].should eq(JSON.parse("{}"))
+    properties["location"]["anyOf"].as_a.should contain(JSON.parse(%({"type":"string","format":"uri-reference"})))
+    properties["timezone"]["anyOf"].as_a.should contain(JSON.parse(%({"type":"string"})))
+    properties["uri"].should eq(JSON.parse(%({"type":"string"})))
+
+    openapi_properties = JSON.parse(SerializedValues.json_schema(true).to_json)["properties"]
+    openapi_properties["payload"].should eq(JSON.parse("{}"))
+    openapi_properties["location"].should eq(JSON.parse(%({"type":"string","format":"uri-reference","nullable":true})))
+  end
+
+  it "uses converted enum values without replacing references for ordinary enum fields" do
+    refs = JSON::Schema::Definitions.new
+    properties = JSON.parse(ConvertedEnums.json_schema(refs: refs).to_json)["properties"]
+    properties["integer"].should eq(JSON.parse(%({"type":"integer","enum":[0,99]})))
+    properties["optional_integer"]["anyOf"].as_a.to_set.should eq(Set{
+      JSON.parse(%({"type":"integer","enum":[0,99]})), JSON.parse(%({"type":"null"})),
+    })
+    properties["custom"]["anyOf"].as_a.to_set.should eq(Set{
+      JSON.parse(%({"type":"string","enum":["wire_default","wire_custom"]})), JSON.parse(%({"type":"null"})),
+    })
+    properties["standard"].should eq(JSON.parse(%({"$ref":"#/$defs/SerializedEnum"})))
+    refs.resolve["SerializedEnum"].should eq(JSON.parse(%({"type":"string","enum":["default","custom"]})))
+  end
+
+  it "includes null in the OpenAPI 3.0 enum values when the enum is nullable" do
+    properties = JSON.parse(ConvertedEnums.json_schema(true).to_json)["properties"]
+    properties["optional_integer"].should eq(JSON.parse(%({"type":"integer","enum":[0,99,null],"nullable":true})))
+    properties["custom"].should eq(JSON.parse(%({"type":"string","enum":["wire_default","wire_custom",null],"nullable":true})))
+  end
+
   describe JSON::Schema::Definitions do
     item_ref = {"$ref" => "#/components/schemas/RefItem"}
     item = {
