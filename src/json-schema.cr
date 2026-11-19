@@ -1,4 +1,5 @@
 require "json"
+require "uri"
 require "uuid"
 require "./json-schema/definitions"
 
@@ -12,15 +13,20 @@ module JSON
         {% properties = {} of Nil => Nil %}
         {% for ivar in @type.instance_vars %}
           {% ann = ivar.annotation(::JSON::Field) %}
-          {% unless ann && (ann[:ignore] || ann[:ignore_deserialize]) %}
-            {% properties[((ann && ann[:key]) || ivar).id] = {ivar.type.resolve, (ann && ann[:converter]), (ann && ann.named_args)} %}
+          {% unless ann && ann[:ignore] %}
+            {% key = ((ann && ann[:key]) || ivar).id %}
+            {% field = {ivar.type.resolve, (ann && ann.named_args)} %}
+            {% directions = properties[key] || {} of Nil => Nil %}
+            {% directions[:input] = field unless ann && ann[:ignore_deserialize] %}
+            {% directions[:output] = field unless ann && ann[:ignore_serialize] == true %}
+            {% properties[key] = directions unless directions.empty? %}
           {% end %}
         {% end %}
 
         # OpenAPI requires at least one entry, so `required` is left out when it's empty
         {% required = [] of String %}
-        {% for key, details in properties %}
-          {% unless details[0].nilable? %}
+        {% for key, directions in properties %}
+          {% if (input = directions[:input]) && !input[0].nilable? %}
             {% required << key.stringify %}
           {% end %}
         {% end %}
@@ -29,22 +35,21 @@ module JSON
           { type: "object" }
         {% else %}
           {type: "object",  properties: {
-            {% for key, details in properties %}
-              {% ivar = details[0] %}
-              {% converter = details[1] %}
-              {% args = details[2] %}
+            {% for key, directions in properties %}
+              {% input = directions[:input] %}
+              {% output = directions[:output] %}
               {% key_str = key.stringify %}
               {% key = key_str.includes?('@') || key_str.includes?('-') || key_str.includes?(' ') || key_str.starts_with?('$') ? key_str : key %}
-              {% if ivar < Enum && converter %}
-                # we don't specify the type of the enum as we don't know what will be output
-                # all we know is that it can be parsed as JSON
-                {{key}}: { enum: [
-                  {% for const in ivar.constants %}
-                    JSON.parse({{converter.resolve}}.to_json({{ivar.name}}::{{const}}).as(String)),
-                  {% end %}
-                ]},
+              {% if !input %}
+                {{key}}: ::JSON::Schema.read_only(::JSON::Schema.field_schema({{output[0].name}}, {{output[1]}}, openapi, {{refs}}), openapi),
+              {% elsif output && output != input %}
+                # A JSON key can use different fields for requests and responses.
+                {{key}}: {anyOf: {
+                  ::JSON::Schema.field_schema({{input[0].name}}, {{input[1]}}, openapi, {{refs}}),
+                  ::JSON::Schema.field_schema({{output[0].name}}, {{output[1]}}, openapi, {{refs}}),
+                }},
               {% else %}
-                {{key}}: openapi ? ::JSON::Schema.introspect({{ivar.name}}, {{args}}, true, {{refs}}) : ::JSON::Schema.introspect({{ivar.name}}, {{args}}, nil, {{refs}}),
+                {{key}}: ::JSON::Schema.field_schema({{input[0].name}}, {{input[1]}}, openapi, {{refs}}),
               {% end %}
             {% end %}
           }{% unless required.empty? %}, required: [
@@ -55,6 +60,78 @@ module JSON
           }
         {% end %}
       {% end %}
+    end
+
+    # :nodoc:
+    macro field_schema(field_type, args, openapi, refs)
+      {% name = field_type.stringify %}
+      {% if !name.starts_with?("Union") && name.includes?("|") %}
+        ::JSON::Schema.field_schema(Union({{field_type}}), {{args}}, {{openapi}}, {{refs}})
+      {% else %}
+        {% type = field_type.resolve %}
+        {% value_type = type.union? && type.nilable? && type.union_types.size == 2 ? type.union_types.find { |member| member != Nil } : type %}
+        {% converter = args && args[:converter] %}
+        {% if value_type < Enum && converter %}
+          ::JSON::Schema.converted_enum(
+            [
+              {% for member in value_type.constants %}
+                ::JSON.parse(::JSON.build { |json| {{converter.resolve}}.to_json({{value_type}}::{{member}}, json) }),
+              {% end %}
+            ] of ::JSON::Any,
+            {{openapi}}, {{type.nilable?}},
+            {{args[:type]}}, {{args[:format]}}, {{args[:description]}}
+          )
+        {% else %}
+          ({{openapi}} ? ::JSON::Schema.introspect({{field_type}}, {{args}}, true, {{refs}}) : ::JSON::Schema.introspect({{field_type}}, {{args}}, nil, {{refs}}))
+        {% end %}
+      {% end %}
+    end
+
+    # :nodoc:
+    def self.read_only(schema, openapi : Bool?)
+      property = JSON.parse(schema.to_json)
+      if openapi && (ref = property.as_h.delete("$ref"))
+        property.as_h["allOf"] = JSON::Any.new([JSON::Any.new({"$ref" => ref})])
+      end
+      property.as_h["readOnly"] = JSON::Any.new(true)
+      property
+    end
+
+    # :nodoc:
+    def self.nullable(schema)
+      property = JSON.parse(schema.to_json)
+      property.as_h["nullable"] = JSON::Any.new(true) if property["type"]?
+      property
+    end
+
+    # :nodoc:
+    def self.converted_enum(values : Array(JSON::Any), openapi : Bool?, nullable : Bool, type : String?, format : String?, description : String?)
+      type ||= enum_value_type(values)
+      schema = {"enum" => JSON::Any.new(values)}
+      schema["type"] = JSON::Any.new(type) if type
+      schema["format"] = JSON::Any.new(format) if format
+      if nullable
+        if openapi
+          values << JSON::Any.new(nil) unless values.includes?(nil)
+          schema["nullable"] = JSON::Any.new(true) if type
+        else
+          schema = {"anyOf" => JSON::Any.new([JSON::Any.new(schema), JSON::Any.new({"type" => JSON::Any.new("null")})])}
+        end
+      end
+      schema["description"] = JSON::Any.new(description) if description
+      JSON::Any.new(schema)
+    end
+
+    private def self.enum_value_type(values)
+      if values.all?(&.raw.is_a?(Int64))
+        "integer"
+      elsif values.all?(&.raw.is_a?(Int64 | Float64))
+        "number"
+      elsif values.all?(&.raw.is_a?(String))
+        "string"
+      elsif values.all?(&.raw.is_a?(Bool))
+        "boolean"
+      end
     end
 
     # `refs`, when provided, is an expression that evaluates to a `JSON::Schema::Definitions`
@@ -88,7 +165,7 @@ module JSON
               {% if refs && (type < Enum || type.ancestors.includes?(JSON::Serializable)) %}
                 {{refs}}.reference({{type}}, {{openapi}}, nullable: true, description: {{description}})
               {% else %}
-                JSON.parse(::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}, {{refs}}).to_json[0..-2] + %(,"nullable":true}))
+                ::JSON::Schema.nullable(::JSON::Schema.introspect({{type}}, {{args}}, {{openapi}}, {{refs}}))
               {% end %}
             {% end %}
           {% end %}
@@ -138,7 +215,7 @@ module JSON
           {{refs}}.reference({{klass}}, {{openapi}}, description: {{description}})
         {% elsif klass < Enum %}
           {type: "string",  enum: {{klass.constants.map(&.stringify.underscore)}}{% if description %}, description: {{description}}{% end %} }
-        {% elsif klass <= String || klass <= Symbol %}
+        {% elsif klass <= String || klass <= Symbol || klass <= ::Time::Location || klass <= ::URI %}
           {% min_length = (args && args[:min_length]) %}
           {% max_length = (args && args[:max_length]) %}
           { type: {{type_override || "string"}}{% if format_hint %}, format: {{format_hint}}{% end %}{% if pattern %}, pattern: {{pattern}}{% end %}{% if min_length %}, minLength: {{min_length}}{% end %}{% if max_length %}, maxLength: {{max_length}}{% end %}{% if description %}, description: {{description}}{% end %} }
@@ -190,8 +267,17 @@ module JSON
           if %klass.responds_to?(:json_schema)
             %klass.json_schema({{openapi}})
           else
-            # anything will validate (JSON::Any)
-            { type: "object"{% if description %}, description: {{description}}{% end %} }
+            {% if klass == ::JSON::Any && !(type_override || format_hint || description) %}
+              NamedTuple.new
+            {% elsif klass == ::JSON::Any %}
+              {
+                {% if type_override %} type: {{type_override}}, {% end %}
+                {% if format_hint %} format: {{format_hint}}, {% end %}
+                {% if description %} description: {{description}}, {% end %}
+              }
+            {% else %}
+              { type: {{type_override || "object"}}{% if format_hint %}, format: {{format_hint}}{% end %}{% if description %}, description: {{description}}{% end %} }
+            {% end %}
           end
         {% end %}
       {% end %}

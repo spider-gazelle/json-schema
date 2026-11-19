@@ -1,4 +1,5 @@
 require "spec"
+require "uri/json"
 require "../src/json-schema"
 
 {% if Fiber.has_constant?(:ExecutionContext) %}
@@ -182,4 +183,69 @@ struct OptionalTimes
   getter epoch : Time?
   @[JSON::Field(description: "An RFC 3339 timestamp")]
   getter timestamp : Time?
+end
+
+struct DirectionalFields
+  include JSON::Serializable
+
+  getter input : String
+
+  @[JSON::Field(key: "total", ignore_deserialize: true)]
+  getter count : Int32 = 7
+
+  @[JSON::Field(ignore_deserialize: true)]
+  getter related : RefItem = RefItem.from_json(%({"content":"item","kind":"option1"}))
+
+  @[JSON::Field(ignore_deserialize: true, ignore_serialize: true)]
+  getter internal : String = "internal"
+
+  @[JSON::Field(ignore: true)]
+  getter ignored : String = "ignored"
+
+  @[JSON::Field(key: "items", ignore_serialize: true)]
+  getter input_items : Array(String)?
+
+  @[JSON::Field(key: "items", ignore_deserialize: true)]
+  getter output_items : Array(Int32)? = [1, 2, 3]
+end
+
+struct SerializedValues
+  include JSON::Serializable
+
+  getter value : JSON::Any
+  getter payload : JSON::Any?
+  @[JSON::Field(type: "string", format: "uri-reference")]
+  getter location : JSON::Any?
+  getter timezone : Time::Location?
+  getter uri : URI
+end
+
+enum SerializedEnum
+  Default =  0
+  Custom  = 99
+end
+
+module BuilderEnumConverter
+  def self.from_json(json : JSON::PullParser) : SerializedEnum
+    SerializedEnum.parse(json.read_string.sub(/^wire_/, ""))
+  end
+
+  def self.to_json(value : SerializedEnum, json : JSON::Builder)
+    json.string("wire_#{value.to_s.underscore}")
+  end
+end
+
+struct ConvertedEnums
+  include JSON::Serializable
+
+  @[JSON::Field(converter: Enum::ValueConverter(SerializedEnum))]
+  getter integer : SerializedEnum
+
+  @[JSON::Field(converter: Enum::ValueConverter(SerializedEnum))]
+  getter! optional_integer : SerializedEnum
+
+  @[JSON::Field(converter: BuilderEnumConverter)]
+  getter custom : SerializedEnum?
+
+  getter standard : SerializedEnum
 end
