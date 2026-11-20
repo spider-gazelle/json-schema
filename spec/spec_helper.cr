@@ -83,6 +83,18 @@ struct RefItem
   getter kind : TestEnum
 end
 
+module Elsewhere
+  module JSON
+  end
+
+  struct Thing
+    include ::JSON::Serializable
+
+    getter name : String
+    getter item : RefItem?
+  end
+end
+
 struct RefList
   include JSON::Serializable
   getter items : Array(RefItem)

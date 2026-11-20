@@ -182,6 +182,18 @@ describe JSON::Schema do
     related.should eq(JSON.parse(%({"allOf":[{"$ref":"#/components/schemas/RefItem"}],"readOnly":true})))
   end
 
+  it "generates an inline schema when the serializable's namespace defines JSON" do
+    properties = JSON.parse(Elsewhere::Thing.json_schema.to_json)["properties"]
+    properties["name"].should eq(JSON.parse(%({"type":"string"})))
+    properties["item"]["anyOf"].as_a.should contain(JSON.parse(%({"type":"null"})))
+  end
+
+  it "generates OpenAPI references when the serializable's namespace defines JSON" do
+    refs = JSON::Schema::Definitions.new("#/components/schemas/")
+    properties = JSON.parse(Elsewhere::Thing.json_schema(true, refs).to_json)["properties"]
+    properties["item"].should eq(JSON.parse(%({"allOf":[{"$ref":"#/components/schemas/RefItem"}],"type":"object","nullable":true})))
+  end
+
   it "describes JSON::Any as any JSON value and honors explicit serialized types" do
     Array(JSON::Any).json_schema.should eq({type: "array", items: NamedTuple.new})
     Hash(String, JSON::Any).json_schema.should eq({type: "object", additionalProperties: NamedTuple.new})

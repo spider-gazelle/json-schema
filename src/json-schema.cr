@@ -286,7 +286,7 @@ module JSON
 
   module Serializable
     macro included
-      extend JSON::Schema
+      extend ::JSON::Schema
     end
   end
 end
